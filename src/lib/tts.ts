@@ -12,6 +12,7 @@ class TTSController {
   private _rate: number = 1.0;
   private _voice: SpeechSynthesisVoice | null = null;
   private _isSupported: boolean;
+  private _preferredLang = 'en-US';
 
   constructor() {
     this._isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -82,18 +83,40 @@ class TTSController {
     return new Promise((resolve) => {
       const voices = this.getVoices();
       if (voices.length > 0) {
+        this.setPreferredVoice(voices);
         resolve(voices);
         return;
       }
 
       // Some browsers load voices asynchronously
       window.speechSynthesis.addEventListener('voiceschanged', () => {
-        resolve(this.getVoices());
+        const nextVoices = this.getVoices();
+        this.setPreferredVoice(nextVoices);
+        resolve(nextVoices);
       }, { once: true });
 
       // Timeout fallback
-      setTimeout(() => resolve(this.getVoices()), 1000);
+      setTimeout(() => {
+        const nextVoices = this.getVoices();
+        this.setPreferredVoice(nextVoices);
+        resolve(nextVoices);
+      }, 1000);
     });
+  }
+
+  private setPreferredVoice(voices: SpeechSynthesisVoice[]): void {
+    if (this._voice || voices.length === 0) return;
+
+    const preferred = voices.find(voice => voice.lang === this._preferredLang);
+    if (preferred) {
+      this._voice = preferred;
+      return;
+    }
+
+    const english = voices.find(voice => voice.lang?.startsWith('en-'));
+    if (english) {
+      this._voice = english;
+    }
   }
 
   /**
@@ -110,6 +133,10 @@ class TTSController {
 
     this.utterance = new SpeechSynthesisUtterance(text);
     this.utterance.rate = this._rate;
+
+    if (!this._voice) {
+      this.setPreferredVoice(this.getVoices());
+    }
 
     if (this._voice) {
       this.utterance.voice = this._voice;

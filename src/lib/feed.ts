@@ -1,6 +1,7 @@
 import type { WikiCard } from './types';
 import { fetchRandomSummaries, fetchRelatedPages } from './wikipedia';
 import { loadCachedCards, saveCachedCards, addToCache } from './cache';
+import { clearBackgroundCache } from './backgrounds';
 
 const PREFETCH_THRESHOLD = 3; // Start prefetching when this many cards remain
 const INITIAL_FETCH_COUNT = 10;
@@ -153,6 +154,7 @@ class FeedManager {
     this.topicMode = false;
     this.currentTopicTitle = null;
     saveCachedCards([]);
+    clearBackgroundCache();
     this.notify();
     await this.fetchMore(INITIAL_FETCH_COUNT);
   }
