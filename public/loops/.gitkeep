@@ -1,0 +1,14 @@
+# This directory is for video loop files
+# Place your .mp4 or .webm video files here
+# Then update src/lib/backgrounds.ts with the video configurations
+
+# Example files to add:
+# - nature-waterfall.mp4
+# - ocean-waves.webm
+# - forest-rain.mp4
+
+# Videos should be:
+# - Short loops (5-15 seconds)
+# - Calming/ambient content
+# - Optimized for web (compressed)
+# - Include proper attribution
