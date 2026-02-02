@@ -1,0 +1,665 @@
+/* CSS Reset and Base Styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-bg: #1a1a2e;
+  --color-bg-secondary: #16213e;
+  --color-text: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.8);
+  --color-text-muted: rgba(255, 255, 255, 0.6);
+  --color-accent: #e94560;
+  --color-accent-hover: #ff6b6b;
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --color-button-bg: rgba(255, 255, 255, 0.15);
+  --color-button-hover: rgba(255, 255, 255, 0.25);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+.app {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Feed Container - Scroll Snap */
+.feed-container {
+  height: 100%;
+  width: 100%;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.feed-item {
+  height: 100%;
+  width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+}
+
+.feed-loading {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: var(--color-bg);
+}
+
+.loading-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+}
+
+/* Spinner */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-button-bg);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Card Placeholder */
+.card-placeholder {
+  height: 100%;
+  width: 100%;
+  background: var(--color-bg);
+}
+
+/* Card */
+.card {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Background Video */
+.background-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* Background Gradient */
+.background-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  background: linear-gradient(
+    135deg,
+    var(--gradient-color-1, #1a1a2e) 0%,
+    var(--gradient-color-2, #16213e) 50%,
+    var(--gradient-color-3, #0f3460) 100%
+  );
+  background-size: 200% 200%;
+}
+
+.background-gradient.animate {
+  animation: gradientShift 15s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Card Overlay */
+.card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.1) 30%,
+    rgba(0, 0, 0, 0.1) 70%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  pointer-events: none;
+}
+
+/* Card Content */
+.card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  padding-top: calc(var(--safe-area-top) + 1.5rem);
+  padding-bottom: 1rem;
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+}
+
+/* Card Thumbnail */
+.card-thumbnail {
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 16/9;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.card-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Card Title */
+.card-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Card Extract */
+.card-extract {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+/* Controls */
+.controls {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.controls-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.control-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-button-bg);
+  border: none;
+  border-radius: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.control-button:hover,
+.control-button:focus {
+  background: var(--color-button-hover);
+  transform: scale(1.05);
+}
+
+.control-button:active {
+  transform: scale(0.95);
+}
+
+.control-button.active {
+  background: var(--color-accent);
+}
+
+.control-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-button.disabled:hover {
+  transform: none;
+}
+
+.control-icon {
+  font-size: 1.25rem;
+}
+
+.control-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+}
+
+/* Card Footer */
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  padding-bottom: calc(var(--safe-area-bottom) + 1rem);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  z-index: 2;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.attribution {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.wiki-link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.wiki-link:hover {
+  text-decoration: underline;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.view-source-link {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.view-source-link:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.about-button {
+  background: transparent;
+  border: 1px solid var(--color-button-bg);
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.about-button:hover {
+  background: var(--color-button-bg);
+  color: var(--color-text);
+}
+
+/* Audio Unlock Overlay */
+.audio-unlock-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: pointer;
+}
+
+.audio-unlock-content {
+  text-align: center;
+  padding: 2rem;
+  max-width: 320px;
+}
+
+.audio-unlock-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.audio-unlock-content h2 {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.audio-unlock-content p {
+  color: var(--color-text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.audio-unlock-button {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.audio-unlock-button:hover {
+  background: var(--color-accent-hover);
+  transform: scale(1.05);
+}
+
+.audio-unlock-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 1rem;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.modal-content {
+  background: var(--color-bg-secondary);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--color-button-bg);
+  color: var(--color-text);
+}
+
+.modal-content h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding-right: 2rem;
+}
+
+.about-section {
+  margin-bottom: 1.5rem;
+}
+
+.about-section h3 {
+  font-size: 1rem;
+  color: var(--color-accent);
+  margin-bottom: 0.5rem;
+}
+
+.about-section p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.about-section a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.about-section a:hover {
+  text-decoration: underline;
+}
+
+.attribution-list {
+  list-style: none;
+  padding: 0;
+}
+
+.attribution-list li {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.attribution-list li:last-child {
+  border-bottom: none;
+}
+
+/* Error Screen */
+.error-screen {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  padding: 2rem;
+}
+
+.error-content {
+  text-align: center;
+}
+
+.error-content h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.error-content p {
+  color: var(--color-text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.retry-button {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-button:hover {
+  background: var(--color-accent-hover);
+}
+
+/* Offline Notice */
+.offline-notice {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  padding: 2rem;
+}
+
+.offline-content {
+  text-align: center;
+  max-width: 300px;
+}
+
+.offline-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  filter: grayscale(100%);
+}
+
+.offline-content h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.offline-content p {
+  color: var(--color-text-secondary);
+  margin-bottom: 1rem;
+}
+
+.offline-hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Media Queries */
+@media (min-width: 768px) {
+  .card-content {
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .card-title {
+    font-size: 2.25rem;
+  }
+
+  .card-extract {
+    font-size: 1.1rem;
+    -webkit-line-clamp: 8;
+  }
+
+  .card-thumbnail {
+    max-width: 400px;
+  }
+
+  .control-button {
+    min-width: 90px;
+    padding: 1rem 1.25rem;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .background-gradient.animate {
+    animation: none;
+  }
+
+  .audio-unlock-icon {
+    animation: none;
+  }
+
+  .spinner {
+    animation: none;
+    border-top-color: transparent;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark mode adjustments (already dark by default) */
+@media (prefers-color-scheme: light) {
+  /* Keep dark theme regardless of system preference for this app */
+}
