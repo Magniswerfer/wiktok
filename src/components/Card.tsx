@@ -127,6 +127,9 @@ function Card({
         audioUnlocked={settings.audioUnlocked}
         cardUrl={card.url}
         cardTitle={card.title}
+        attributionText={card.source.attributionText}
+        license={card.source.license}
+        background={background}
         onListen={handleListen}
         onPause={handlePause}
         onSave={handleSave}
