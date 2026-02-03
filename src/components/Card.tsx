@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import type { WikiCard, AppSettings, TTSState } from '../lib/types';
 import { tts } from '../lib/tts';
 import { saveCard, unsaveCard, isCardSaved } from '../lib/cache';
-import { getRandomBackground } from '../lib/backgrounds';
+import { getBackgroundForCard } from '../lib/backgrounds';
 import Background from './Background';
 import Controls from './Controls';
 
 interface CardProps {
   card: WikiCard;
   isActive: boolean;
+  isPrefetch?: boolean;
   settings: AppSettings;
   onNext: () => void;
   onPrevious: () => void;
@@ -20,6 +21,7 @@ interface CardProps {
 function Card({
   card,
   isActive,
+  isPrefetch = false,
   settings,
   onNext,
   onTopicMode,
@@ -29,8 +31,8 @@ function Card({
   const [ttsState, setTtsState] = useState<TTSState>(tts.state);
   const [isSaved, setIsSaved] = useState(() => isCardSaved(card.id));
 
-  // Get a consistent background for this card
-  const background = useMemo(() => getRandomBackground(), []);
+  // Get a consistent background for this card based on its ID
+  const background = useMemo(() => getBackgroundForCard(card.id), [card.id]);
 
   // Subscribe to TTS state changes
   useEffect(() => {
@@ -44,6 +46,11 @@ function Card({
       tts.stop();
     }
   }, [isActive, ttsState]);
+
+  // Update saved state when card changes
+  useEffect(() => {
+    setIsSaved(isCardSaved(card.id));
+  }, [card.id]);
 
   const handleListen = () => {
     if (!settings.audioUnlocked) return;
@@ -70,7 +77,11 @@ function Card({
 
   return (
     <div className="card">
-      <Background config={background} isActive={isActive} />
+      <Background
+        config={background}
+        isActive={isActive}
+        isPrefetch={isPrefetch}
+      />
 
       <div className="card-overlay" />
 
@@ -80,7 +91,7 @@ function Card({
             <img
               src={card.thumbnailUrl}
               alt=""
-              loading="lazy"
+              loading={isPrefetch ? 'eager' : 'lazy'}
             />
           </div>
         )}

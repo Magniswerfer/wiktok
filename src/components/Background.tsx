@@ -4,34 +4,57 @@ import type { BackgroundConfig } from '../lib/types';
 interface BackgroundProps {
   config: BackgroundConfig;
   isActive: boolean;
+  isPrefetch?: boolean;
 }
 
-function Background({ config, isActive }: BackgroundProps) {
+function Background({ config, isActive, isPrefetch = false }: BackgroundProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Handle video play/pause based on active state
+  // Handle video preloading and playback
   useEffect(() => {
     if (config.type !== 'video' || !videoRef.current) return;
 
-    if (isActive) {
-      videoRef.current.play().catch(() => {
-        // Autoplay may be blocked, that's ok
+    const video = videoRef.current;
+
+    if (isPrefetch) {
+      // Prefetch: load video and start buffering (muted autoplay may work)
+      video.preload = 'auto';
+      video.load();
+      // Try to play muted to buffer - many browsers allow this
+      video.play().catch(() => {
+        // Autoplay blocked, that's fine - it will still buffer
+      });
+    } else if (isActive) {
+      // Active: ensure playing
+      video.play().catch(() => {
+        // Autoplay may be blocked
       });
     } else {
-      videoRef.current.pause();
+      // Not active or prefetch: pause to save resources
+      video.pause();
     }
-  }, [isActive, config.type]);
+  }, [isActive, isPrefetch, config.type]);
+
+  // Update video source when config changes
+  useEffect(() => {
+    if (config.type !== 'video' || !videoRef.current || !config.src) return;
+
+    const video = videoRef.current;
+    if (video.src !== config.src) {
+      video.src = config.src;
+      video.load();
+    }
+  }, [config]);
 
   if (config.type === 'video' && config.src) {
     return (
       <video
         ref={videoRef}
         className="background-video"
-        src={config.src}
         loop
         muted
         playsInline
-        preload="auto"
+        preload={isPrefetch || isActive ? 'auto' : 'metadata'}
       />
     );
   }
