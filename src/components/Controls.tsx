@@ -1,4 +1,4 @@
-import type { TTSState } from '../lib/types';
+import type { TTSState, BackgroundConfig } from '../lib/types';
 
 interface ControlsProps {
   ttsState: TTSState;
@@ -7,6 +7,9 @@ interface ControlsProps {
   audioUnlocked: boolean;
   cardUrl: string;
   cardTitle: string;
+  attributionText: string;
+  license: string;
+  background: BackgroundConfig;
   onListen: () => void;
   onPause: () => void;
   onSave: () => void;
@@ -20,6 +23,9 @@ function Controls({
   audioUnlocked,
   cardUrl,
   cardTitle,
+  attributionText,
+  license,
+  background,
   onListen,
   onPause,
   onSave,
@@ -29,24 +35,33 @@ function Controls({
   const isPaused = ttsState === 'paused';
   const isUnavailable = ttsState === 'unavailable';
 
+  const buildShareText = (): string => {
+    let text = `${attributionText} (${license})`;
+    if (background.pexels) {
+      text += ` | Video by ${background.pexels.photographerName} on Pexels`;
+    }
+    return text;
+  };
+
   const handleShare = async () => {
+    const shareText = buildShareText();
     if (navigator.share) {
       try {
         await navigator.share({
           title: cardTitle,
-          text: `Check out this Wikipedia article: ${cardTitle}`,
+          text: shareText,
           url: cardUrl
         });
       } catch (err) {
         // User cancelled or share failed
         if ((err as Error).name !== 'AbortError') {
-          // Fallback to clipboard
-          await navigator.clipboard.writeText(cardUrl);
+          // Fallback to clipboard with full attribution
+          await navigator.clipboard.writeText(`${shareText}\n${cardUrl}`);
         }
       }
     } else {
-      // Fallback: copy to clipboard
-      await navigator.clipboard.writeText(cardUrl);
+      // Fallback: copy to clipboard with full attribution
+      await navigator.clipboard.writeText(`${shareText}\n${cardUrl}`);
     }
   };
 

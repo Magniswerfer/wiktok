@@ -1,10 +1,10 @@
 # TODO
 
 ## Phase 0 — Pre‑launch Essentials
-- Polish core loop: instant load, zero jank, predictable scroll behavior, and clear offline/error states.
-- Streamlined onboarding: explain audio, swiping, and attribution in <30 seconds.
-- Ensure attribution compliance for Wikipedia and media sources across all surfaces (including share/export).
-- Validate CC BY-SA derivative use requirements and Pexels terms (if used).
+- [x] Polish core loop: instant load, zero jank, predictable scroll behavior, and clear offline/error states.
+- [x] Streamlined onboarding: explain audio, swiping, and attribution in <30 seconds.
+- [x] Ensure attribution compliance for Wikipedia and media sources across all surfaces (including share/export).
+- [x] Validate CC BY-SA derivative use requirements and Pexels terms (if used).
 - Add robust backoff + retry strategy, timeouts, and offline handling tests.
 - Draft and publish a clear privacy policy (tracking, cookies/localStorage).
 - Minimize data collection by default.
