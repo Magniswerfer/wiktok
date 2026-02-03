@@ -10,7 +10,7 @@
 - [x] Run basic security review and dependency audit.
 
 ## Phase 1 — Beta Quality
-- Set performance targets: TTI <2s on mid-range mobile, scroll frame drops <1%, memory stable over long sessions.
+- [x] Set performance targets: TTI <2s on mid-range mobile, scroll frame drops <1%, memory stable over long sessions.
 - Add monitoring: error reporting, performance telemetry, and alerting.
 - Minimize data collection by default (when adding database/analytics).
 - Add observability: tracing for fetches, cache hit rates, crash analytics.
