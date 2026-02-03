@@ -20,6 +20,8 @@ class FeedManager {
   private callbacks: Set<FeedCallback> = new Set();
   private topicMode: boolean = false;
   private currentTopicTitle: string | null = null;
+  private inFlightController: AbortController | null = null;
+  private fetchSeq: number = 0;
 
   constructor() {
     // Load cached cards on init
@@ -77,19 +79,23 @@ class FeedManager {
     this.error = null;
     this.notify();
 
+    const controller = new AbortController();
+    const fetchId = ++this.fetchSeq;
+    this.inFlightController = controller;
+
     try {
       let newCards: WikiCard[];
 
       if (this.topicMode && this.currentTopicTitle) {
         // Fetch related pages in topic mode
-        newCards = await fetchRelatedPages(this.currentTopicTitle);
+        newCards = await fetchRelatedPages(this.currentTopicTitle, { signal: controller.signal });
         if (newCards.length === 0) {
           // Fallback to random if no related pages
-          newCards = await fetchRandomSummaries(count);
+          newCards = await fetchRandomSummaries(count, { signal: controller.signal });
         }
       } else {
         // Fetch random pages
-        newCards = await fetchRandomSummaries(count);
+        newCards = await fetchRandomSummaries(count, { signal: controller.signal });
       }
 
       // Filter out duplicates
@@ -102,11 +108,17 @@ class FeedManager {
       addToCache(uniqueCards);
 
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        return;
+      }
       this.error = e instanceof Error ? e.message : 'Failed to fetch articles';
       console.error('Feed fetch error:', e);
     } finally {
-      this.isLoading = false;
-      this.notify();
+      if (this.inFlightController === controller && this.fetchSeq === fetchId) {
+        this.inFlightController = null;
+        this.isLoading = false;
+        this.notify();
+      }
     }
   }
 
@@ -148,6 +160,11 @@ class FeedManager {
    * Clear feed and reload
    */
   async refresh(): Promise<void> {
+    if (this.inFlightController) {
+      this.inFlightController.abort();
+      this.inFlightController = null;
+    }
+    this.isLoading = false;
     this.cards = [];
     this.seenIds.clear();
     this.error = null;

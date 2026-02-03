@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
 import type { BackgroundConfig } from '../lib/types';
 
 interface BackgroundProps {
@@ -13,25 +13,46 @@ function Background({ config, nextConfig, isActive, scrollProgress = 0 }: Backgr
   const videoBRef = useRef<HTMLVideoElement>(null);
 
   // Track which video slot (A or B) is the "current" one
-  const [activeSlot, setActiveSlot] = useState<'A' | 'B'>('A');
-  const [slotASrc, setSlotASrc] = useState<string | null>(null);
-  const [slotBSrc, setSlotBSrc] = useState<string | null>(null);
+  const [activeSlot, _setActiveSlot] = useState<'A' | 'B'>('A');
+  const [slotASrc, _setSlotASrc] = useState<string | null>(null);
+  const [slotBSrc, _setSlotBSrc] = useState<string | null>(null);
   const [nextVideoReady, setNextVideoReady] = useState(false);
 
   // Use refs to track previous values without causing re-renders
   const prevConfigSrcRef = useRef<string | null>(null);
   const prevNextConfigSrcRef = useRef<string | null>(null);
+  const pendingSwapSrcRef = useRef<string | null>(null);
+  const activeSlotRef = useRef<'A' | 'B'>(activeSlot);
+  const slotASrcRef = useRef<string | null>(slotASrc);
+  const slotBSrcRef = useRef<string | null>(slotBSrc);
+
+  const setActiveSlot = useCallback((next: 'A' | 'B') => {
+    activeSlotRef.current = next;
+    _setActiveSlot(next);
+  }, []);
+
+  const setSlotASrc = useCallback((next: string | null) => {
+    slotASrcRef.current = next;
+    _setSlotASrc(next);
+  }, []);
+
+  const setSlotBSrc = useCallback((next: string | null) => {
+    slotBSrcRef.current = next;
+    _setSlotBSrc(next);
+  }, []);
 
   // Get current config src
   const configSrc = config.type === 'video' ? config.src : null;
   const nextConfigSrc = nextConfig?.type === 'video' ? nextConfig.src : null;
 
-  // Handle config changes (main video source)
-  useEffect(() => {
+  // Handle config changes (main video source) before paint to avoid visual flash
+  useLayoutEffect(() => {
     if (!configSrc) {
       setSlotASrc(null);
       setSlotBSrc(null);
+      setNextVideoReady(false);
       prevConfigSrcRef.current = null;
+      pendingSwapSrcRef.current = null;
       return;
     }
 
@@ -44,27 +65,32 @@ function Background({ config, nextConfig, isActive, scrollProgress = 0 }: Backgr
     if (!prevConfigSrcRef.current) {
       setSlotASrc(configSrc);
       setActiveSlot('A');
-      prevConfigSrcRef.current = configSrc;
-      return;
-    }
-
-    // Check if new config matches what's in the inactive slot (swap case)
-    const inactiveSlotSrc = activeSlot === 'A' ? slotBSrc : slotASrc;
-
-    if (configSrc === inactiveSlotSrc) {
-      // Swap! The preloaded video becomes current
-      setActiveSlot(activeSlot === 'A' ? 'B' : 'A');
       setNextVideoReady(false);
       prevConfigSrcRef.current = configSrc;
       return;
     }
 
-    // New video we haven't preloaded - load it in active slot (will cause brief flash)
-    if (activeSlot === 'A') {
+    // Check if new config matches what's in the inactive slot (swap case)
+    const inactiveSlot = activeSlotRef.current === 'A' ? 'B' : 'A';
+    const inactiveSlotSrc = inactiveSlot === 'A' ? slotASrcRef.current : slotBSrcRef.current;
+
+    if (configSrc === inactiveSlotSrc) {
+      // Swap! The preloaded video becomes current
+      setActiveSlot(inactiveSlot);
+      setNextVideoReady(false);
+      pendingSwapSrcRef.current = null;
+      prevConfigSrcRef.current = configSrc;
+      return;
+    }
+
+    // New video we haven't preloaded - load into inactive slot and swap when ready
+    if (inactiveSlot === 'A') {
       setSlotASrc(configSrc);
     } else {
       setSlotBSrc(configSrc);
     }
+    pendingSwapSrcRef.current = configSrc;
+    setNextVideoReady(false);
     prevConfigSrcRef.current = configSrc;
   }, [configSrc]); // Only depend on configSrc, read other values directly
 
@@ -105,20 +131,32 @@ function Background({ config, nextConfig, isActive, scrollProgress = 0 }: Backgr
     if (video && video.paused) {
       video.play().catch(() => {});
     }
-    if (activeSlot !== 'A') {
-      setNextVideoReady(true);
+    if (activeSlotRef.current !== 'A') {
+      if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotASrcRef.current) {
+        setActiveSlot('A');
+        pendingSwapSrcRef.current = null;
+        setNextVideoReady(false);
+      } else {
+        setNextVideoReady(true);
+      }
     }
-  }, [activeSlot]);
+  }, [setActiveSlot]);
 
   const handleVideoBCanPlay = useCallback(() => {
     const video = videoBRef.current;
     if (video && video.paused) {
       video.play().catch(() => {});
     }
-    if (activeSlot !== 'B') {
-      setNextVideoReady(true);
+    if (activeSlotRef.current !== 'B') {
+      if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotBSrcRef.current) {
+        setActiveSlot('B');
+        pendingSwapSrcRef.current = null;
+        setNextVideoReady(false);
+      } else {
+        setNextVideoReady(true);
+      }
     }
-  }, [activeSlot]);
+  }, [setActiveSlot]);
 
   // Sync playback for active video
   useEffect(() => {

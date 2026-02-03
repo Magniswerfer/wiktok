@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
 
 interface CardImageProps {
   src: string | null;
@@ -12,23 +12,61 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
   const imageBRef = useRef<HTMLImageElement>(null);
 
   // Track which image slot (A or B) is the "current" one
-  const [activeSlot, setActiveSlot] = useState<'A' | 'B'>('A');
-  const [slotASrc, setSlotASrc] = useState<string | null>(null);
-  const [slotBSrc, setSlotBSrc] = useState<string | null>(null);
-  const [slotALoaded, setSlotALoaded] = useState(false);
-  const [slotBLoaded, setSlotBLoaded] = useState(false);
+  const [activeSlot, _setActiveSlot] = useState<'A' | 'B'>('A');
+  const [slotASrc, _setSlotASrc] = useState<string | null>(null);
+  const [slotBSrc, _setSlotBSrc] = useState<string | null>(null);
+  const [slotALoaded, _setSlotALoaded] = useState(false);
+  const [slotBLoaded, _setSlotBLoaded] = useState(false);
 
   // Use refs to track previous values without causing re-renders
   const prevSrcRef = useRef<string | null>(null);
   const prevNextSrcRef = useRef<string | null>(null);
+  const pendingSwapSrcRef = useRef<string | null>(null);
+  const activeSlotRef = useRef<'A' | 'B'>(activeSlot);
+  const slotASrcRef = useRef<string | null>(slotASrc);
+  const slotBSrcRef = useRef<string | null>(slotBSrc);
+  const slotALoadedRef = useRef(slotALoaded);
+  const slotBLoadedRef = useRef(slotBLoaded);
+
+  const setActiveSlot = useCallback((next: 'A' | 'B') => {
+    activeSlotRef.current = next;
+    _setActiveSlot(next);
+  }, []);
+
+  const setSlotASrc = useCallback((next: string | null) => {
+    slotASrcRef.current = next;
+    _setSlotASrc(next);
+  }, []);
+
+  const setSlotBSrc = useCallback((next: string | null) => {
+    slotBSrcRef.current = next;
+    _setSlotBSrc(next);
+  }, []);
+
+  const setSlotALoaded = useCallback((next: boolean) => {
+    slotALoadedRef.current = next;
+    _setSlotALoaded(next);
+  }, []);
+
+  const setSlotBLoaded = useCallback((next: boolean) => {
+    slotBLoadedRef.current = next;
+    _setSlotBLoaded(next);
+  }, []);
+
+  const isImageCached = useCallback((url: string) => {
+    const img = new Image();
+    img.src = url;
+    return img.complete && img.naturalWidth > 0;
+  }, []);
 
   // Handle src changes (main image source)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!src) {
       setSlotASrc(null);
       setSlotBSrc(null);
       setSlotALoaded(false);
       setSlotBLoaded(false);
+      pendingSwapSrcRef.current = null;
       prevSrcRef.current = null;
       return;
     }
@@ -43,51 +81,38 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
       setSlotASrc(src);
       setActiveSlot('A');
       prevSrcRef.current = src;
-      // Check if already cached
-      const img = new Image();
-      img.src = src;
-      if (img.complete && img.naturalWidth > 0) {
-        setSlotALoaded(true);
-      } else {
-        setSlotALoaded(false);
-      }
+      setSlotALoaded(isImageCached(src));
       return;
     }
 
     // Check if new src matches what's in the inactive slot (swap case)
-    const inactiveSlotSrc = activeSlot === 'A' ? slotBSrc : slotASrc;
+    const inactiveSlot = activeSlotRef.current === 'A' ? 'B' : 'A';
+    const inactiveSlotSrc = inactiveSlot === 'A' ? slotASrcRef.current : slotBSrcRef.current;
+    const inactiveSlotLoaded = inactiveSlot === 'A' ? slotALoadedRef.current : slotBLoadedRef.current;
 
     if (src === inactiveSlotSrc) {
-      // Swap! The preloaded image becomes current
-      setActiveSlot(activeSlot === 'A' ? 'B' : 'A');
+      // Swap only if preloaded image is actually loaded
+      if (inactiveSlotLoaded) {
+        setActiveSlot(inactiveSlot);
+        pendingSwapSrcRef.current = null;
+      } else {
+        pendingSwapSrcRef.current = src;
+      }
       prevSrcRef.current = src;
       return;
     }
 
-    // New image we haven't preloaded - load it in active slot
-    if (activeSlot === 'A') {
+    // New image we haven't preloaded - load it in inactive slot and swap when ready
+    if (inactiveSlot === 'A') {
       setSlotASrc(src);
-      // Check if already cached
-      const img = new Image();
-      img.src = src;
-      if (img.complete && img.naturalWidth > 0) {
-        setSlotALoaded(true);
-      } else {
-        setSlotALoaded(false);
-      }
+      setSlotALoaded(isImageCached(src));
     } else {
       setSlotBSrc(src);
-      // Check if already cached
-      const img = new Image();
-      img.src = src;
-      if (img.complete && img.naturalWidth > 0) {
-        setSlotBLoaded(true);
-      } else {
-        setSlotBLoaded(false);
-      }
+      setSlotBLoaded(isImageCached(src));
     }
+    pendingSwapSrcRef.current = src;
     prevSrcRef.current = src;
-  }, [src]); // Only depend on src
+  }, [src, isImageCached, setActiveSlot, setSlotALoaded, setSlotASrc, setSlotBLoaded, setSlotBSrc]);
 
   // Handle next src changes (preloading)
   useEffect(() => {
@@ -110,22 +135,30 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
     const inactiveSlot = activeSlot === 'A' ? 'B' : 'A';
     if (inactiveSlot === 'A') {
       setSlotASrc(nextSrc);
-      setSlotALoaded(false);
+      setSlotALoaded(isImageCached(nextSrc));
     } else {
       setSlotBSrc(nextSrc);
-      setSlotBLoaded(false);
+      setSlotBLoaded(isImageCached(nextSrc));
     }
     prevNextSrcRef.current = nextSrc;
-  }, [nextSrc, src, activeSlot]);
+  }, [nextSrc, src, activeSlot, isImageCached, setSlotALoaded, setSlotASrc, setSlotBLoaded, setSlotBSrc]);
 
   // Image load handlers
   const handleImageALoad = useCallback(() => {
     setSlotALoaded(true);
-  }, []);
+    if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotASrcRef.current) {
+      setActiveSlot('A');
+      pendingSwapSrcRef.current = null;
+    }
+  }, [setActiveSlot, setSlotALoaded]);
 
   const handleImageBLoad = useCallback(() => {
     setSlotBLoaded(true);
-  }, []);
+    if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotBSrcRef.current) {
+      setActiveSlot('B');
+      pendingSwapSrcRef.current = null;
+    }
+  }, [setActiveSlot, setSlotBLoaded]);
 
   // Calculate opacities
   const activeLoaded = activeSlot === 'A' ? slotALoaded : slotBLoaded;

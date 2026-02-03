@@ -237,6 +237,9 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
     }
 
     const onScroll = () => {
+      if (isResettingScroll.current) {
+        return;
+      }
       // Calculate scroll progress for video fade effect
       const cardHeight = container.clientHeight;
       const scrollTop = container.scrollTop;
