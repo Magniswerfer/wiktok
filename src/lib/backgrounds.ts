@@ -41,6 +41,28 @@ export const gradientBackgrounds: BackgroundConfig[] = [
 ];
 
 /**
+ * Simple hash function to get consistent index from string
+ */
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Get a consistent background for a card based on its ID
+ * This ensures the same card always gets the same background
+ */
+export function getBackgroundForCard(cardId: string): BackgroundConfig {
+  const index = hashString(cardId) % backgrounds.length;
+  return backgrounds[index];
+}
+
+/**
  * Get a random background configuration
  * Prefers Pexels videos if available, falls back to gradients
  */

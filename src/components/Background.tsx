@@ -4,9 +4,10 @@ import type { BackgroundConfig } from '../lib/types';
 interface BackgroundProps {
   config: BackgroundConfig;
   isActive: boolean;
+  isPrefetch?: boolean;
 }
 
-function Background({ config, isActive }: BackgroundProps) {
+function Background({ config, isActive, isPrefetch = false }: BackgroundProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isReady, setIsReady] = useState(false);
   const [activeSrc, setActiveSrc] = useState<string | null>(
@@ -73,7 +74,7 @@ function Background({ config, isActive }: BackgroundProps) {
     };
   }, [config.type, config.src, activeSrc]);
 
-  // Handle video play/pause based on active state
+  // Handle video preloading and playback
   useEffect(() => {
     const video = videoRef.current;
     if (!video || config.type !== 'video' || !activeSrc) return;

@@ -48,6 +48,11 @@ function Card({
     }
   }, [isActive, ttsState]);
 
+  // Update saved state when card changes
+  useEffect(() => {
+    setIsSaved(isCardSaved(card.id));
+  }, [card.id]);
+
   const handleListen = () => {
     if (!settings.audioUnlocked) return;
     tts.toggle(`${card.title}. ${card.extract}`);
