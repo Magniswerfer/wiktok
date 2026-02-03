@@ -5,7 +5,7 @@
 - [x] Streamlined onboarding: explain audio, swiping, and attribution in <30 seconds.
 - [x] Ensure attribution compliance for Wikipedia and media sources across all surfaces (including share/export).
 - [x] Validate CC BY-SA derivative use requirements and Pexels terms (if used).
-- Add robust backoff + retry strategy, timeouts, and offline handling tests.
+- [x] Add robust backoff + retry strategy, timeouts, and offline handling tests.
 - Draft and publish a clear privacy policy (tracking, cookies/localStorage).
 - Minimize data collection by default.
 - Run basic security review and dependency audit.
