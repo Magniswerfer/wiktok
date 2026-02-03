@@ -18,6 +18,7 @@ interface FeedProps {
   showIntro: boolean;
   onIntroComplete: () => void;
   onEnableAudio: () => void;
+  isFrameMode: boolean;
 }
 
 type SlotPosition = 'prev' | 'current' | 'next';
@@ -29,8 +30,19 @@ interface SlotContent {
   key: string | null;
 }
 
-function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showIntro, onIntroComplete, onEnableAudio }: FeedProps) {
+function Feed({
+  cards,
+  isLoading,
+  settings,
+  onSettingsChange,
+  onShowAbout,
+  showIntro,
+  onIntroComplete,
+  onEnableAudio,
+  isFrameMode
+}: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const backgroundRef = useRef<HTMLDivElement>(null);
   const isResettingScroll = useRef(false);
   const scrollTimeout = useRef<number | null>(null);
   const isUserInteracting = useRef(false);
@@ -109,6 +121,11 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
       behavior: instant ? 'auto' : 'smooth'
     });
 
+    const background = backgroundRef.current;
+    if (background && isFrameMode) {
+      background.style.transform = `translateY(${cardHeight}px)`;
+    }
+
     // Reset the flag after scroll completes
     if (instant) {
       // For instant scroll, reset after two frames, then restore smooth behavior
@@ -124,7 +141,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
         isResettingScroll.current = false;
       }, 300);
     }
-  }, []);
+  }, [isFrameMode]);
 
   const resetToMiddleAndSetIndex = useCallback((nextIndex: number) => {
     const container = containerRef.current;
@@ -141,6 +158,10 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
     container.style.scrollBehavior = 'auto';
 
     container.scrollTo({ top: cardHeight, behavior: 'auto' });
+    const background = backgroundRef.current;
+    if (background && isFrameMode) {
+      background.style.transform = `translateY(${cardHeight}px)`;
+    }
 
     flushSync(() => {
       setCurrentIndex(nextIndex);
@@ -153,7 +174,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
       container.style.scrollBehavior = prevBehavior || 'smooth';
       isResettingScroll.current = false;
     });
-  }, []);
+  }, [isFrameMode]);
 
   // Update slot content when cards array or currentIndex changes
   // Use useLayoutEffect to update DOM synchronously before paint
@@ -301,6 +322,10 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
       // Calculate scroll progress for video fade effect
       const cardHeight = container.clientHeight;
       const scrollTop = container.scrollTop;
+      const background = backgroundRef.current;
+      if (background) {
+        background.style.transform = isFrameMode ? `translateY(${scrollTop}px)` : '';
+      }
       const distanceFromMiddle = scrollTop - cardHeight;
       const progress = Math.min(Math.abs(distanceFromMiddle) / cardHeight, 1);
       setScrollProgress(progress);
@@ -340,7 +365,62 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
         clearTimeout(scrollTimeout.current);
       }
     };
-  }, [handleScrollEnd]);
+  }, [handleScrollEnd, isFrameMode]);
+
+  // Proxy scroll gestures outside the phone frame on tablet/desktop
+  useEffect(() => {
+    if (!isFrameMode) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const shouldProxy = (target: EventTarget | null) => {
+      if (!(target instanceof Node)) return true;
+      return !container.contains(target);
+    };
+
+    let touchStartY: number | null = null;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!shouldProxy(event.target)) return;
+      event.preventDefault();
+      container.scrollBy({ top: event.deltaY, behavior: 'auto' });
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (!shouldProxy(event.target)) return;
+      if (event.touches.length !== 1) return;
+      touchStartY = event.touches[0].clientY;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (touchStartY === null) return;
+      if (!shouldProxy(event.target)) return;
+      if (event.touches.length !== 1) return;
+      const currentY = event.touches[0].clientY;
+      const delta = touchStartY - currentY;
+      touchStartY = currentY;
+      event.preventDefault();
+      container.scrollBy({ top: delta, behavior: 'auto' });
+    };
+
+    const onTouchEnd = () => {
+      touchStartY = null;
+    };
+
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [isFrameMode]);
 
   // Handle "More like this" - Topic mode
   const handleTopicMode = useCallback((card: WikiCard) => {
@@ -398,7 +478,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
 
   return (
     <div className="feed-container feed-recycler" ref={containerRef}>
-      <div className="feed-background">
+      <div className="feed-background" ref={backgroundRef}>
         <Background
           config={currentBackground}
           nextConfig={nextBackground}

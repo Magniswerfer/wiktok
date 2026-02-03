@@ -51,10 +51,23 @@ body {
   width: 100%;
 }
 
+.app-shell {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
 .app {
   height: 100%;
   width: 100%;
   position: relative;
+}
+
+.device-frame {
+  display: none;
 }
 
 /* Feed Container - Scroll Snap */
@@ -191,6 +204,13 @@ body {
   mix-blend-mode: screen;
   pointer-events: none;
   z-index: 1;
+}
+
+/* Remove global texture overlay in frame mode */
+@media (min-width: 768px) {
+  body.frame-mode .card::before {
+    display: none;
+  }
 }
 
 /* Background Video */
@@ -883,6 +903,103 @@ body {
   color: var(--color-text-muted);
 }
 
+@media (min-width: 768px) {
+  :root {
+    --frame-width: min(390px, 86vw);
+    --frame-aspect: 19.5 / 9;
+    --frame-height: min(calc(var(--frame-width) * var(--frame-aspect)), 92vh);
+    --frame-radius: 38px;
+    --frame-bezel: 14px;
+  }
+
+  body.frame-mode {
+    background-color: #050608;
+    background-image: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.04), transparent 55%);
+  }
+
+  body.frame-mode .app-shell {
+    align-items: center;
+    padding: 24px;
+  }
+
+  body.frame-mode .device-app {
+    width: var(--frame-width);
+    height: var(--frame-height);
+    aspect-ratio: var(--frame-aspect);
+    border-radius: var(--frame-radius);
+    overflow: hidden;
+    box-shadow:
+      0 0 0 var(--frame-bezel) rgba(18, 22, 28, 0.95),
+      0 24px 60px rgba(0, 0, 0, 0.55),
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+    background: #000;
+  }
+
+  body.frame-mode .device-frame {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  body.frame-mode .device-frame::before {
+    content: "";
+    width: calc(var(--frame-width) + var(--frame-bezel) * 2);
+    height: calc(var(--frame-height) + var(--frame-bezel) * 2);
+    border-radius: calc(var(--frame-radius) + var(--frame-bezel));
+    background: transparent;
+    box-shadow:
+      0 30px 80px rgba(0, 0, 0, 0.6),
+      0 0 0 2px rgba(255, 255, 255, 0.04) inset,
+      0 -2px 6px rgba(255, 255, 255, 0.08) inset;
+  }
+
+  body.frame-mode .feed-background {
+    position: absolute;
+  }
+
+  body.frame-mode .device-notch {
+    position: absolute;
+    top: calc(50% - (var(--frame-height) / 2) - 6px);
+    width: 130px;
+    height: 32px;
+    border-radius: 0 0 18px 18px;
+    background: linear-gradient(180deg, rgba(6, 8, 12, 0.9), rgba(12, 14, 18, 0.9));
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  body.frame-mode .device-speaker {
+    position: absolute;
+    top: calc(50% - (var(--frame-height) / 2) + 10px);
+    width: 56px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  body.frame-mode .device-button {
+    position: absolute;
+    width: 6px;
+    height: 54px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.05));
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+
+  body.frame-mode .device-button-top {
+    left: calc(50% - (var(--frame-width) / 2) - var(--frame-bezel) - 6px);
+    top: calc(50% - (var(--frame-height) / 2) + 120px);
+  }
+
+  body.frame-mode .device-button-bottom {
+    left: calc(50% - (var(--frame-width) / 2) - var(--frame-bezel) - 6px);
+    top: calc(50% - (var(--frame-height) / 2) + 190px);
+  }
+}
+
 /* Media Queries */
 @media (min-width: 768px) {
   .card-stack {
@@ -923,6 +1040,47 @@ body {
 
   .control-label {
     font-size: 0.75rem;
+  }
+}
+
+@media (min-width: 768px) {
+  body.frame-mode .card-stack {
+    right: 90px;
+    padding: 24px;
+    padding-bottom: calc(var(--safe-area-bottom) + 72px);
+    max-width: 520px;
+  }
+
+  body.frame-mode .card-media {
+    max-width: 520px;
+  }
+
+  body.frame-mode .card-media-frame {
+    border-radius: 22px;
+  }
+
+  body.frame-mode .card-title {
+    font-size: 1.9rem;
+  }
+
+  body.frame-mode .card-extract {
+    font-size: 1.02rem;
+    -webkit-line-clamp: 4;
+  }
+
+  body.frame-mode .controls {
+    right: 12px;
+    gap: 20px;
+  }
+
+  body.frame-mode .control-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
+
+  body.frame-mode .control-label {
+    font-size: 0.7rem;
   }
 }
 

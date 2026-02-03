@@ -17,6 +17,10 @@ function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showIntro, setShowIntro] = useState(() => !getIntroSeen());
+  const [isFrameMode, setIsFrameMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(min-width: 768px)').matches;
+  });
   const cardsRef = useRef<WikiCard[]>(cards);
   const hasAppliedVideoBackgrounds = useRef(false);
 
@@ -38,6 +42,21 @@ function App() {
         console.warn('Failed to initialize Pexels videos:', err);
       });
   }, []);
+
+  // Track frame mode for tablet/desktop layouts
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    const updateFrameMode = () => setIsFrameMode(mediaQuery.matches);
+    updateFrameMode();
+    mediaQuery.addEventListener('change', updateFrameMode);
+    return () => mediaQuery.removeEventListener('change', updateFrameMode);
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.classList.toggle('frame-mode', isFrameMode);
+  }, [isFrameMode]);
 
   // Subscribe to feed updates
   useEffect(() => {
@@ -98,7 +117,8 @@ function App() {
   }, []);
 
   return (
-    <div className="app">
+    <div className="app-shell">
+      <div className="app device-app">
       {isOffline && cards.length === 0 && (
         <OfflineNotice onRetry={handleRefresh} />
       )}
@@ -137,12 +157,20 @@ function App() {
             setShowIntro(false);
           }}
           onEnableAudio={handleAudioUnlock}
+          isFrameMode={isFrameMode}
         />
       )}
 
       {showAbout && (
         <AboutModal onClose={() => setShowAbout(false)} />
       )}
+      </div>
+      <div className="device-frame" aria-hidden="true">
+        <div className="device-notch" />
+        <div className="device-speaker" />
+        <div className="device-button device-button-top" />
+        <div className="device-button device-button-bottom" />
+      </div>
     </div>
   );
 }
