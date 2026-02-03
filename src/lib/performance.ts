@@ -11,6 +11,7 @@ export interface PerformanceMetrics {
   tti: number | null;
   fcp: number | null;
   lcp: number | null;
+  firstCardRender: number | null;
   frameDropRate: number;
   memoryUsage: number | null;
   totalFrames: number;
@@ -20,6 +21,7 @@ export interface PerformanceMetrics {
 const FRAME_BUDGET_MS = 16.67; // 60fps target
 const TARGETS = {
   TTI_MS: 2000,
+  FIRST_CARD_RENDER_MS: 1500,
   FRAME_DROP_RATE: 0.01, // 1%
   MEMORY_GROWTH_MB: 50, // Max acceptable growth per session
 };
@@ -28,6 +30,7 @@ let metrics: PerformanceMetrics = {
   tti: null,
   fcp: null,
   lcp: null,
+  firstCardRender: null,
   frameDropRate: 0,
   memoryUsage: null,
   totalFrames: 0,
@@ -37,6 +40,7 @@ let metrics: PerformanceMetrics = {
 let lastFrameTime = 0;
 let isMonitoring = false;
 let initialMemory: number | null = null;
+let lastLongTaskEnd: number | null = null;
 
 /**
  * Measure Time to Interactive using PerformanceObserver
@@ -56,7 +60,7 @@ export function measureTTI(): void {
         fcpObserver.disconnect();
       }
     });
-    fcpObserver.observe({ entryTypes: ['paint'] });
+    fcpObserver.observe({ entryTypes: ['paint'], buffered: true });
   } catch {
     // PerformanceObserver not supported for paint
   }
@@ -70,7 +74,7 @@ export function measureTTI(): void {
         metrics.lcp = lastEntry.startTime;
       }
     });
-    lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+    lcpObserver.observe({ entryTypes: ['largest-contentful-paint'], buffered: true });
 
     // Stop observing after load
     window.addEventListener('load', () => {
@@ -84,16 +88,20 @@ export function measureTTI(): void {
   try {
     const longTaskObserver = new PerformanceObserver((list) => {
       const entries = list.getEntries();
-      if (entries.length === 0 && metrics.fcp && !metrics.tti) {
-        metrics.tti = performance.now();
+      for (const entry of entries) {
+        lastLongTaskEnd = entry.startTime + entry.duration;
       }
     });
-    longTaskObserver.observe({ entryTypes: ['longtask'] });
+    longTaskObserver.observe({ entryTypes: ['longtask'], buffered: true });
 
     // Fallback: if no long tasks after 5s, consider interactive
     setTimeout(() => {
-      if (!metrics.tti && metrics.fcp) {
-        metrics.tti = metrics.fcp + 100; // Assume fast TTI
+      if (!metrics.tti) {
+        const now = performance.now();
+        const lastLongTaskAge = lastLongTaskEnd ? (now - lastLongTaskEnd) : Infinity;
+        if (lastLongTaskAge >= 2000) {
+          metrics.tti = now;
+        }
       }
       longTaskObserver.disconnect();
     }, 5000);
@@ -103,6 +111,14 @@ export function measureTTI(): void {
       metrics.tti = performance.now();
     }, { once: true });
   }
+}
+
+/**
+ * Mark first content card render (after paint)
+ */
+export function markFirstCardRender(): void {
+  if (metrics.firstCardRender !== null) return;
+  metrics.firstCardRender = performance.now();
 }
 
 /**
@@ -184,6 +200,7 @@ export function getMetrics(): PerformanceMetrics {
  */
 export function checkTargets(): {
   tti: boolean;
+  firstCardRender: boolean;
   frameDropRate: boolean;
   memory: boolean;
   summary: string;
@@ -191,17 +208,19 @@ export function checkTargets(): {
   const m = getMetrics();
 
   const ttiOk = m.tti !== null && m.tti <= TARGETS.TTI_MS;
+  const firstCardOk = m.firstCardRender !== null && m.firstCardRender <= TARGETS.FIRST_CARD_RENDER_MS;
   const framesOk = m.frameDropRate <= TARGETS.FRAME_DROP_RATE;
   const memoryOk = initialMemory === null || m.memoryUsage === null ||
     (m.memoryUsage - initialMemory) <= TARGETS.MEMORY_GROWTH_MB;
 
   const summary = [
     `TTI: ${m.tti?.toFixed(0) ?? '?'}ms (target: <${TARGETS.TTI_MS}ms) ${ttiOk ? '✓' : '✗'}`,
+    `First card render: ${m.firstCardRender?.toFixed(0) ?? '?'}ms (target: <${TARGETS.FIRST_CARD_RENDER_MS}ms) ${firstCardOk ? '✓' : '✗'}`,
     `Frame drops: ${(m.frameDropRate * 100).toFixed(2)}% (target: <${TARGETS.FRAME_DROP_RATE * 100}%) ${framesOk ? '✓' : '✗'}`,
     `Memory: ${m.memoryUsage?.toFixed(1) ?? '?'}MB ${memoryOk ? '✓' : '✗'}`,
   ].join('\n');
 
-  return { tti: ttiOk, frameDropRate: framesOk, memory: memoryOk, summary };
+  return { tti: ttiOk, firstCardRender: firstCardOk, frameDropRate: framesOk, memory: memoryOk, summary };
 }
 
 /**
@@ -222,7 +241,7 @@ export function initPerformanceMonitoring(): void {
   // Log report after page is fully loaded
   if (typeof window !== 'undefined') {
     window.addEventListener('load', () => {
-      setTimeout(logPerformanceReport, 3000);
+      setTimeout(logPerformanceReport, 6000);
     }, { once: true });
   }
 }

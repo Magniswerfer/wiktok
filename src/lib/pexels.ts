@@ -125,10 +125,10 @@ async function fetchVideosForQuery(query: string): Promise<PexelsVideoInfo[]> {
 
     const data: PexelsResponse = await response.json();
 
-    // Extract HD or SD video URLs (prefer HD, portrait orientation)
+    // Extract video URLs (prefer portrait and smaller size to reduce memory)
     const videoInfos: PexelsVideoInfo[] = [];
     for (const video of data.videos) {
-      // Sort video files by quality (prefer HD) and portrait aspect
+      // Sort video files by portrait aspect, then prefer SD and smaller resolution
       const sortedFiles = video.video_files
         .filter(f => f.file_type === 'video/mp4')
         .sort((a, b) => {
@@ -138,13 +138,16 @@ async function fetchVideosForQuery(query: string): Promise<PexelsVideoInfo[]> {
           if (aIsPortrait && !bIsPortrait) return -1;
           if (!aIsPortrait && bIsPortrait) return 1;
 
-          // Then prefer HD quality
-          const aIsHD = a.quality === 'hd';
-          const bIsHD = b.quality === 'hd';
-          if (aIsHD && !bIsHD) return -1;
-          if (!aIsHD && bIsHD) return 1;
+          // Prefer SD quality to reduce decode/memory load
+          const aIsSD = a.quality === 'sd';
+          const bIsSD = b.quality === 'sd';
+          if (aIsSD && !bIsSD) return -1;
+          if (!aIsSD && bIsSD) return 1;
 
-          return 0;
+          // Then prefer smaller resolution
+          const aPixels = a.width * a.height;
+          const bPixels = b.width * b.height;
+          return aPixels - bPixels;
         });
 
       if (sortedFiles.length > 0) {

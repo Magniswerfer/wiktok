@@ -211,7 +211,7 @@ function Background({ config, nextConfig, isActive, scrollProgress = 0 }: Backgr
           loop
           muted
           playsInline
-          preload="auto"
+          preload={activeSlot === 'A' ? 'auto' : 'metadata'}
           onCanPlay={handleVideoACanPlay}
         />
 
@@ -229,7 +229,7 @@ function Background({ config, nextConfig, isActive, scrollProgress = 0 }: Backgr
           loop
           muted
           playsInline
-          preload="auto"
+          preload={activeSlot === 'B' ? 'auto' : 'metadata'}
           onCanPlay={handleVideoBCanPlay}
         />
       </>

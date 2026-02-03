@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import type { WikiCard, AppSettings } from '../lib/types';
 import { feedManager } from '../lib/feed';
 import { tts } from '../lib/tts';
+import { markFirstCardRender } from '../lib/performance';
 import { getBackgroundForCard, getRandomGradient } from '../lib/backgrounds';
 import Card from './Card';
 import IntroCard from './IntroCard';
@@ -45,6 +46,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
     { card: null, position: 'current' },
     { card: null, position: 'next' }
   ]);
+  const hasMarkedFirstCard = useRef(false);
 
   const totalItems = showIntro ? cards.length + 1 : cards.length;
 
@@ -185,6 +187,22 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showI
     });
 
   }, [cards, currentIndex, getCardAtIndex, showIntro, totalItems]);
+
+  // Mark first content card render after paint
+  useEffect(() => {
+    if (hasMarkedFirstCard.current) return;
+    const currentSlot = slots[1];
+    if (!currentSlot?.card || currentSlot.isIntro) return;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!hasMarkedFirstCard.current) {
+          markFirstCardRender();
+          hasMarkedFirstCard.current = true;
+        }
+      });
+    });
+  }, [slots]);
 
   // Initialize scroll position on mount
   useEffect(() => {
