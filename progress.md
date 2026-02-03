@@ -51,22 +51,32 @@
 
 ### UI Components
 - [x] App shell (`src/app/App.tsx`)
-- [x] Swipeable feed with CSS scroll-snap (`src/components/Feed.tsx`)
+- [x] Recycler feed with 3-slide transform paging (`src/components/Feed.tsx`)
 - [x] Card component with content display (`src/components/Card.tsx`)
 - [x] Control buttons (Listen, Pause, Next, Save, Similar)
 - [x] Animated gradient backgrounds (`src/components/Background.tsx`)
-- [x] Video background support (infrastructure ready)
+- [x] Video background support with preloading (infrastructure ready)
 - [x] Audio unlock overlay for iOS (`src/components/AudioUnlockOverlay.tsx`)
 - [x] About/Attribution modal (`src/components/AboutModal.tsx`)
 - [x] Offline notice (`src/components/OfflineNotice.tsx`)
 - [x] Loading spinner
 - [x] Error screen with retry
 
+### Feed Navigation (TikTok-style recycler)
+- [x] Only 3 DOM nodes (prev, current, next) for performance
+- [x] Transform-based slide transitions
+- [x] Touch/swipe gesture handling with velocity detection
+- [x] Wheel/trackpad support with threshold accumulation
+- [x] Keyboard navigation (Arrow Up/Down, j/k)
+- [x] Rubber-band effect at boundaries
+- [x] Video preloading for next slide
+- [x] Consistent background per card via hash function
+
 ### Styling
 - [x] Mobile-first responsive CSS
 - [x] Safe area inset support (notch handling)
 - [x] Gradient overlay for text readability
-- [x] Scroll-snap for smooth card transitions
+- [x] Transform-based smooth transitions
 - [x] Button hover/active states
 - [x] `prefers-reduced-motion` support
 - [x] Glassmorphism effects (backdrop blur)
@@ -89,7 +99,7 @@
 - [ ] Haptic feedback (mentioned as not needed)
 - [ ] Unit tests
 - [ ] E2E tests
-- [ ] Gesture-based navigation (beyond scroll-snap)
+- [x] Gesture-based navigation (recycler pattern with swipe/wheel/keyboard)
 - [ ] Saved articles view/page
 - [ ] Search functionality
 - [ ] Language selection (currently English only)
