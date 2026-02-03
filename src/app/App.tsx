@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { feedManager } from '../lib/feed';
 import { loadSettings, saveSettings } from '../lib/cache';
 import { tts } from '../lib/tts';
-import { initializeVideos } from '../lib/pexels';
+import { initializeVideos, hasVideos } from '../lib/pexels';
+import { clearBackgroundCache } from '../lib/backgrounds';
 import type { WikiCard, AppSettings } from '../lib/types';
 import Feed from '../components/Feed';
 import AboutModal from '../components/AboutModal';
@@ -17,6 +18,7 @@ function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showIntro, setShowIntro] = useState(() => !getIntroSeen());
   const cardsRef = useRef<WikiCard[]>(cards);
+  const hasAppliedVideoBackgrounds = useRef(false);
 
   useEffect(() => {
     cardsRef.current = cards;
@@ -24,9 +26,17 @@ function App() {
 
   // Initialize Pexels videos on app load
   useEffect(() => {
-    initializeVideos().catch(err => {
-      console.warn('Failed to initialize Pexels videos:', err);
-    });
+    initializeVideos()
+      .then(() => {
+        if (!hasAppliedVideoBackgrounds.current && hasVideos()) {
+          hasAppliedVideoBackgrounds.current = true;
+          clearBackgroundCache();
+          setCards(prev => prev.slice());
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to initialize Pexels videos:', err);
+      });
   }, []);
 
   // Subscribe to feed updates
