@@ -72,6 +72,17 @@ function Card({
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (isExpanded) {
+      document.body.classList.add('card-expanded-open');
+      return () => {
+        document.body.classList.remove('card-expanded-open');
+      };
+    }
+    document.body.classList.remove('card-expanded-open');
+    return undefined;
+  }, [isExpanded]);
+
   // Stop TTS when card becomes inactive
   useEffect(() => {
     if (!isActive && ttsState !== 'idle') {
