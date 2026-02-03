@@ -594,6 +594,96 @@ body {
   margin-top: 1rem;
 }
 
+/* Intro Card */
+.intro-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.intro-card-content {
+  position: relative;
+  z-index: 3;
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.intro-card-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin-bottom: 16px;
+}
+
+.intro-card-title {
+  font-size: 2rem;
+  margin: 0 0 18px;
+}
+
+.intro-card-list {
+  list-style: none;
+  margin: 0 auto 22px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  color: var(--color-text-secondary);
+}
+
+.intro-card-list li {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.intro-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.intro-card-button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  background: var(--color-accent);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.intro-card-button:hover {
+  transform: translateY(-1px);
+}
+
+.intro-card-button.secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+.intro-card-button.secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.intro-card-hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
 /* Modal Overlay */
 .modal-overlay {
   position: fixed;
@@ -742,6 +832,29 @@ body {
   justify-content: center;
   background: var(--color-bg);
   padding: 2rem;
+}
+
+.offline-banner {
+  position: fixed;
+  top: calc(var(--safe-area-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(10, 14, 18, 0.9);
+  color: var(--color-text);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+}
+
+.offline-banner .retry-button {
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
 }
 
 .offline-content {

@@ -5,6 +5,7 @@ import { feedManager } from '../lib/feed';
 import { tts } from '../lib/tts';
 import { getBackgroundForCard, getRandomGradient } from '../lib/backgrounds';
 import Card from './Card';
+import IntroCard from './IntroCard';
 import Background from './Background';
 
 interface FeedProps {
@@ -13,6 +14,9 @@ interface FeedProps {
   settings: AppSettings;
   onSettingsChange: (settings: Partial<AppSettings>) => void;
   onShowAbout: () => void;
+  showIntro: boolean;
+  onIntroComplete: () => void;
+  onEnableAudio: () => void;
 }
 
 type SlotPosition = 'prev' | 'current' | 'next';
@@ -20,9 +24,11 @@ type SlotPosition = 'prev' | 'current' | 'next';
 interface SlotContent {
   card: WikiCard | null;
   position: SlotPosition;
+  isIntro?: boolean;
+  key: string | null;
 }
 
-function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: FeedProps) {
+function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout, showIntro, onIntroComplete, onEnableAudio }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isResettingScroll = useRef(false);
   const scrollTimeout = useRef<number | null>(null);
@@ -40,13 +46,22 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
     { card: null, position: 'next' }
   ]);
 
+  const totalItems = showIntro ? cards.length + 1 : cards.length;
+
+  const getCardAtIndex = useCallback((index: number) => {
+    if (showIntro) {
+      return index > 0 ? cards[index - 1] : null;
+    }
+    return cards[index] ?? null;
+  }, [cards, showIntro]);
+
   const currentBackground = useMemo(() => {
-    const currentCard = cards[currentIndex];
+    const currentCard = getCardAtIndex(currentIndex);
     if (!currentCard) {
       return getRandomGradient();
     }
     return getBackgroundForCard(currentCard.id);
-  }, [cards, currentIndex]);
+  }, [getCardAtIndex, currentIndex]);
 
   // Get the upcoming background based on scroll direction
   const nextBackground = useMemo(() => {
@@ -56,11 +71,11 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
       ? currentIndex + 1  // Scrolling down = going to next card
       : currentIndex - 1; // Scrolling up = going to previous card
 
-    const targetCard = cards[targetIndex];
+    const targetCard = getCardAtIndex(targetIndex);
     if (!targetCard) return null;
 
     return getBackgroundForCard(targetCard.id);
-  }, [cards, currentIndex, scrollDirection]);
+  }, [getCardAtIndex, currentIndex, scrollDirection]);
 
   // Get the upcoming thumbnail based on scroll direction
   const nextThumbnailUrl = useMemo(() => {
@@ -70,9 +85,9 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
       ? currentIndex + 1
       : currentIndex - 1;
 
-    const targetCard = cards[targetIndex];
+    const targetCard = getCardAtIndex(targetIndex);
     return targetCard?.thumbnailUrl || null;
-  }, [cards, currentIndex, scrollDirection]);
+  }, [getCardAtIndex, currentIndex, scrollDirection]);
 
   // Scroll to middle slot
   const scrollToMiddle = useCallback((instant = true) => {
@@ -141,33 +156,53 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
   // Update slot content when cards array or currentIndex changes
   // Use useLayoutEffect to update DOM synchronously before paint
   useLayoutEffect(() => {
-    const prevCard = currentIndex > 0 ? cards[currentIndex - 1] : null;
-    const currentCard = cards[currentIndex] ?? null;
-    const nextCard = cards[currentIndex + 1] ?? null;
+    const getItem = (index: number) => {
+      if (index < 0 || index >= totalItems) return { key: null, card: null, isIntro: false };
+      if (showIntro && index === 0) return { key: 'intro', card: null, isIntro: true };
+      const card = getCardAtIndex(index);
+      return { key: card?.id ?? null, card, isIntro: false };
+    };
+
+    const prevItem = getItem(currentIndex - 1);
+    const currentItem = getItem(currentIndex);
+    const nextItem = getItem(currentIndex + 1);
 
     // Only update slots if the actual cards changed (compare by id)
     setSlots(prev => {
-      const prevSame = prev[0].card?.id === prevCard?.id;
-      const currSame = prev[1].card?.id === currentCard?.id;
-      const nextSame = prev[2].card?.id === nextCard?.id;
+      const prevSame = prev[0].key === prevItem.key;
+      const currSame = prev[1].key === currentItem.key;
+      const nextSame = prev[2].key === nextItem.key;
 
       if (prevSame && currSame && nextSame) {
         return prev; // No change needed
       }
 
       return [
-        { card: prevCard, position: 'prev' },
-        { card: currentCard, position: 'current' },
-        { card: nextCard, position: 'next' }
+        { card: prevItem.card, position: 'prev', isIntro: prevItem.isIntro, key: prevItem.key },
+        { card: currentItem.card, position: 'current', isIntro: currentItem.isIntro, key: currentItem.key },
+        { card: nextItem.card, position: 'next', isIntro: nextItem.isIntro, key: nextItem.key }
       ];
     });
 
-  }, [cards, currentIndex, scrollToMiddle]);
+  }, [cards, currentIndex, getCardAtIndex, showIntro, totalItems]);
 
   // Initialize scroll position on mount
   useEffect(() => {
     scrollToMiddle(true);
   }, [scrollToMiddle]);
+
+  // Rebase index when intro is dismissed
+  useEffect(() => {
+    if (!showIntro && currentIndex > 0) {
+      setCurrentIndex(prev => Math.max(prev - 1, 0));
+    }
+  }, [showIntro]);
+
+  // Proactively prefetch when near the end (including initial load)
+  useEffect(() => {
+    const cardIndex = showIntro ? Math.max(currentIndex - 1, 0) : currentIndex;
+    feedManager.maybePreFetch(cardIndex);
+  }, [currentIndex, cards.length, showIntro]);
 
   // Handle scroll end - detect which slot we landed on
   const handleScrollEnd = useCallback(() => {
@@ -188,24 +223,29 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
       // Swiped up to previous
       tts.stop();
       resetToMiddleAndSetIndex(currentIndex - 1);
-      feedManager.maybePreFetch(currentIndex - 1);
-    } else if (atNext && currentIndex < cards.length - 1) {
+      const prevCardIndex = showIntro ? Math.max(currentIndex - 2, 0) : currentIndex - 1;
+      feedManager.maybePreFetch(prevCardIndex);
+    } else if (atNext && currentIndex < totalItems - 1) {
       // Swiped down to next
       tts.stop();
       resetToMiddleAndSetIndex(currentIndex + 1);
-      feedManager.maybePreFetch(currentIndex + 1);
+      const nextCardIndex = showIntro ? currentIndex : currentIndex + 1;
+      feedManager.maybePreFetch(nextCardIndex);
+      if (showIntro && currentIndex === 0) {
+        onIntroComplete();
+      }
     } else if (!atCurrent) {
       // If we aren't near any snap point, don't force a reset.
       // For out-of-bounds at edges, snap back to middle.
-      if ((atPrev && currentIndex === 0) || (atNext && currentIndex === cards.length - 1)) {
+      if ((atPrev && currentIndex === 0) || (atNext && currentIndex === totalItems - 1)) {
         scrollToMiddle(false);
       }
       return;
-    } else if ((atPrev && currentIndex === 0) || (atNext && currentIndex === cards.length - 1)) {
+    } else if ((atPrev && currentIndex === 0) || (atNext && currentIndex === totalItems - 1)) {
       // Tried to scroll past bounds, snap back to middle
       scrollToMiddle(false);
     }
-  }, [currentIndex, cards.length, resetToMiddleAndSetIndex, scrollToMiddle]);
+  }, [currentIndex, onIntroComplete, resetToMiddleAndSetIndex, scrollToMiddle, showIntro, totalItems]);
 
   // Listen for scroll end using scrollend event or fallback to debounce
   useEffect(() => {
@@ -320,7 +360,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
   }, [currentIndex]);
 
   // Loading state - no cards yet
-  if (cards.length === 0 && isLoading) {
+  if (cards.length === 0 && isLoading && !showIntro) {
     return (
       <div className="feed-loading">
         <div className="spinner" />
@@ -330,7 +370,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
   }
 
   // No cards available
-  if (cards.length === 0) {
+  if (cards.length === 0 && !showIntro) {
     return (
       <div className="feed-loading">
         <p>No articles available</p>
@@ -351,7 +391,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
       {slots.map((slot, index) => {
         const isActive = index === 1; // Middle slot is always "current"
         const isFirst = currentIndex === 0 && index === 0;
-        const isLast = currentIndex === cards.length - 1 && index === 2;
+        const isLast = currentIndex === totalItems - 1 && index === 2;
         // Keep slots stable to avoid scroll anchoring when cards swap
         const slotKey = slot.position;
         const slotBackground = slot.card ? getBackgroundForCard(slot.card.id) : getRandomGradient();
@@ -361,7 +401,13 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
             key={slotKey}
             className={`feed-item ${isFirst ? 'feed-item-boundary' : ''} ${isLast ? 'feed-item-boundary' : ''}`}
           >
-            {slot.card ? (
+            {slot.isIntro ? (
+              <IntroCard
+                audioUnlocked={settings.audioUnlocked}
+                onEnableAudio={onEnableAudio}
+                onStart={handleNext}
+              />
+            ) : slot.card ? (
               <Card
                 card={slot.card}
                 isActive={isActive}
