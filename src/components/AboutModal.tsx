@@ -78,6 +78,11 @@ function AboutModal({ onClose }: AboutModalProps) {
             or sent to any server. Your saved articles and preferences are stored
             locally on your device.
           </p>
+          <p>
+            <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
+              Read our full Privacy Policy
+            </a>
+          </p>
         </section>
 
         <section className="about-section">
