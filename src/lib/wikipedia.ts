@@ -2,10 +2,58 @@ import type { WikiCard, WikipediaSummaryResponse, WikipediaRelatedResponse } fro
 
 const API_BASE = 'https://en.wikipedia.org/api/rest_v1';
 const DEFAULT_TIMEOUT_MS = 10000;
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_BASE_DELAY_MS = 1000;
 
 interface FetchOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
+  maxRetries?: number;
+  baseDelayMs?: number;
+}
+
+/**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Check if an error is retryable (network errors, 5xx, 429)
+ */
+function isRetryableError(error: unknown, response?: Response): boolean {
+  // Network errors are retryable
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    return true;
+  }
+
+  // Timeout/abort errors are not retryable (user-initiated or timeout)
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return false;
+  }
+
+  // Check response status codes
+  if (response) {
+    // 429 Too Many Requests - retryable
+    if (response.status === 429) return true;
+    // 5xx Server errors - retryable
+    if (response.status >= 500 && response.status < 600) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Calculate delay with exponential backoff and jitter
+ */
+function calculateBackoffDelay(attempt: number, baseDelayMs: number): number {
+  // Exponential backoff: baseDelay * 2^attempt
+  const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
+  // Add jitter (0-25% of delay) to prevent thundering herd
+  const jitter = exponentialDelay * Math.random() * 0.25;
+  // Cap at 30 seconds
+  return Math.min(exponentialDelay + jitter, 30000);
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, options?: FetchOptions): Promise<Response> {
@@ -26,6 +74,66 @@ async function fetchWithTimeout(url: string, init: RequestInit, options?: FetchO
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+/**
+ * Fetch with timeout and exponential backoff retry
+ */
+async function fetchWithRetry(url: string, init: RequestInit, options?: FetchOptions): Promise<Response> {
+  const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
+  const baseDelayMs = options?.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
+
+  let lastError: unknown;
+  let lastResponse: Response | undefined;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Check if we're offline before attempting
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('No network connection');
+    }
+
+    // Check if aborted before attempting
+    if (options?.signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    try {
+      const response = await fetchWithTimeout(url, init, options);
+
+      // Success - return response
+      if (response.ok) {
+        return response;
+      }
+
+      // Non-retryable error status
+      if (!isRetryableError(null, response)) {
+        return response; // Let caller handle the error
+      }
+
+      lastResponse = response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry non-retryable errors
+      if (!isRetryableError(error)) {
+        throw error;
+      }
+    }
+
+    // Don't delay after last attempt
+    if (attempt < maxRetries) {
+      const delay = calculateBackoffDelay(attempt, baseDelayMs);
+      console.warn(`Fetch attempt ${attempt + 1} failed, retrying in ${Math.round(delay)}ms...`);
+      await sleep(delay);
+    }
+  }
+
+  // All retries exhausted
+  if (lastResponse) {
+    return lastResponse; // Return last response for caller to handle
+  }
+  throw lastError;
 }
 
 /**
@@ -53,7 +161,7 @@ function responseToCard(response: WikipediaSummaryResponse): WikiCard {
  * Fetch a random Wikipedia article summary
  */
 export async function fetchRandomSummary(options?: FetchOptions): Promise<WikiCard> {
-  const response = await fetchWithTimeout(`${API_BASE}/page/random/summary`, {
+  const response = await fetchWithRetry(`${API_BASE}/page/random/summary`, {
     headers: {
       'Accept': 'application/json',
       'Api-User-Agent': 'WikiTok/1.0 (https://github.com/wikitok; contact@wikitok.app)'
@@ -73,7 +181,7 @@ export async function fetchRandomSummary(options?: FetchOptions): Promise<WikiCa
  */
 export async function fetchSummaryByTitle(title: string, options?: FetchOptions): Promise<WikiCard> {
   const encodedTitle = encodeURIComponent(title);
-  const response = await fetchWithTimeout(`${API_BASE}/page/summary/${encodedTitle}`, {
+  const response = await fetchWithRetry(`${API_BASE}/page/summary/${encodedTitle}`, {
     headers: {
       'Accept': 'application/json',
       'Api-User-Agent': 'WikiTok/1.0 (https://github.com/wikitok; contact@wikitok.app)'
@@ -93,7 +201,7 @@ export async function fetchSummaryByTitle(title: string, options?: FetchOptions)
  */
 export async function fetchRelatedPages(title: string, options?: FetchOptions): Promise<WikiCard[]> {
   const encodedTitle = encodeURIComponent(title);
-  const response = await fetchWithTimeout(`${API_BASE}/page/related/${encodedTitle}`, {
+  const response = await fetchWithRetry(`${API_BASE}/page/related/${encodedTitle}`, {
     headers: {
       'Accept': 'application/json',
       'Api-User-Agent': 'WikiTok/1.0 (https://github.com/wikitok; contact@wikitok.app)'
