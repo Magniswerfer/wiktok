@@ -1,15 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
-import type { WikiCard, AppSettings, TTSState } from '../lib/types';
+import { useState, useEffect } from 'react';
+import type { WikiCard, AppSettings, TTSState, BackgroundConfig } from '../lib/types';
 import { tts } from '../lib/tts';
 import { saveCard, unsaveCard, isCardSaved } from '../lib/cache';
-import { getBackgroundForCard } from '../lib/backgrounds';
-import Background from './Background';
 import Controls from './Controls';
 
 interface CardProps {
   card: WikiCard;
   isActive: boolean;
-  isPrefetch?: boolean;
+  background: BackgroundConfig;
   settings: AppSettings;
   onNext: () => void;
   onPrevious: () => void;
@@ -21,18 +19,21 @@ interface CardProps {
 function Card({
   card,
   isActive,
-  isPrefetch = false,
+  background,
   settings,
-  onNext,
   onTopicMode,
   onShowAbout,
   isTopicModeActive
 }: CardProps) {
   const [ttsState, setTtsState] = useState<TTSState>(tts.state);
   const [isSaved, setIsSaved] = useState(() => isCardSaved(card.id));
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  // Get a consistent background for this card based on its ID
-  const background = useMemo(() => getBackgroundForCard(card.id), [card.id]);
+  // Update saved/expanded state when card changes (for recycled components)
+  useEffect(() => {
+    setIsSaved(isCardSaved(card.id));
+    setIsExpanded(false);
+  }, [card.id]);
 
   // Subscribe to TTS state changes
   useEffect(() => {
@@ -77,72 +78,109 @@ function Card({
 
   return (
     <div className="card">
-      <Background
-        config={background}
-        isActive={isActive}
-        isPrefetch={isPrefetch}
-      />
-
       <div className="card-overlay" />
 
-      <div className="card-content">
-        {card.thumbnailUrl && (
-          <div className="card-thumbnail">
-            <img
-              src={card.thumbnailUrl}
-              alt=""
-              loading={isPrefetch ? 'eager' : 'lazy'}
-            />
+      <div className={`card-stack ${isExpanded ? 'expanded' : ''}`}>
+        {card.thumbnailUrl ? (
+          <div className="card-media">
+            <div className="card-media-glow" />
+            <div className="card-media-frame">
+              <img
+                src={card.thumbnailUrl}
+                alt={`Illustration from Wikipedia for ${card.title}`}
+                loading="lazy"
+              />
+            </div>
           </div>
-        )}
+        ) : null}
 
-        <h1 className="card-title">{card.title}</h1>
+        <div className="card-content">
+          <h1 className="card-title">{card.title}</h1>
 
-        <p className="card-extract">{card.extract}</p>
+          <p
+            className={`card-extract ${isExpanded ? 'expanded' : ''}`}
+            onClick={() => setIsExpanded(prev => !prev)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setIsExpanded(prev => !prev);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-expanded={isExpanded}
+          >
+            {card.extract}
+            <span className="card-extract-toggle">
+              {isExpanded ? 'Show less' : 'Read more'}
+            </span>
+          </p>
 
-        <Controls
-          ttsState={ttsState}
-          isSaved={isSaved}
-          isTopicModeActive={isTopicModeActive}
-          audioUnlocked={settings.audioUnlocked}
-          onListen={handleListen}
-          onPause={handlePause}
-          onNext={onNext}
-          onSave={handleSave}
-          onTopicMode={onTopicMode}
-        />
+        </div>
       </div>
 
-      <footer className="card-footer">
-        <div className="attribution">
-          <span>Text from </span>
-          <a
-            href={card.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="wiki-link"
-          >
-            Wikipedia
-          </a>
-          <span> ({card.source.license})</span>
-        </div>
-        <div className="footer-actions">
+      <Controls
+        ttsState={ttsState}
+        isSaved={isSaved}
+        isTopicModeActive={isTopicModeActive}
+        audioUnlocked={settings.audioUnlocked}
+        cardUrl={card.url}
+        cardTitle={card.title}
+        onListen={handleListen}
+        onPause={handlePause}
+        onSave={handleSave}
+        onTopicMode={onTopicMode}
+      />
+
+      <footer className="card-bar">
+        <div className="card-bar-links">
           <a
             href={card.url}
             target="_blank"
             rel="noopener noreferrer"
             className="view-source-link"
           >
-            View source
+            View on Wikipedia
           </a>
-          <button
-            onClick={onShowAbout}
-            className="about-button"
-            aria-label="About WikiTok"
-          >
-            About
-          </button>
+          <span className="meta-separator">•</span>
+          <span className="meta-license">{card.source.license}</span>
+          {card.thumbnailUrl ? (
+            <>
+              <span className="meta-separator">•</span>
+              <span className="meta-credit">Image from Wikipedia</span>
+            </>
+          ) : null}
+          {background.pexels ? (
+            <>
+              <span className="meta-separator">•</span>
+              <span className="meta-credit">
+                Video by{' '}
+                <a
+                  href={background.pexels.photographerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {background.pexels.photographerName}
+                </a>{' '}
+                on{' '}
+                <a
+                  href={background.pexels.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Pexels
+                </a>
+              </span>
+            </>
+          ) : null}
         </div>
+        <button
+          onClick={onShowAbout}
+          className="about-button"
+          aria-label="About WikiTok"
+        >
+          About
+        </button>
       </footer>
     </div>
   );

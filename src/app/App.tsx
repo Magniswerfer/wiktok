@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { feedManager } from '../lib/feed';
 import { loadSettings, saveSettings } from '../lib/cache';
 import { tts } from '../lib/tts';
+import { initializeVideos } from '../lib/pexels';
 import type { WikiCard, AppSettings } from '../lib/types';
 import Feed from '../components/Feed';
 import AudioUnlockOverlay from '../components/AudioUnlockOverlay';
@@ -15,6 +16,13 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [showAbout, setShowAbout] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  // Initialize Pexels videos on app load
+  useEffect(() => {
+    initializeVideos().catch(err => {
+      console.warn('Failed to initialize Pexels videos:', err);
+    });
+  }, []);
 
   // Subscribe to feed updates
   useEffect(() => {

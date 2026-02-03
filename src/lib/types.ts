@@ -75,6 +75,15 @@ export interface WikipediaRelatedResponse {
 }
 
 /**
+ * Pexels attribution info
+ */
+export interface PexelsAttribution {
+  photographerName: string;
+  photographerUrl: string;
+  videoUrl: string; // Link to the video page on Pexels
+}
+
+/**
  * Background video/animation configuration
  */
 export interface BackgroundConfig {
@@ -83,6 +92,36 @@ export interface BackgroundConfig {
   src?: string; // for video type
   colors?: string[]; // for gradient type
   attribution: string;
+  pexels?: PexelsAttribution; // Pexels-specific attribution
+}
+
+/**
+ * Pexels video file
+ */
+export interface PexelsVideoFile {
+  id: number;
+  quality: string;
+  file_type: string;
+  width: number;
+  height: number;
+  link: string;
+}
+
+/**
+ * Pexels video
+ */
+export interface PexelsVideo {
+  id: number;
+  url: string;
+  video_files: PexelsVideoFile[];
+}
+
+/**
+ * Pexels API response
+ */
+export interface PexelsResponse {
+  videos: PexelsVideo[];
+  total_results: number;
 }
 
 /**

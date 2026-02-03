@@ -1,8 +1,11 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import type { WikiCard, AppSettings } from '../lib/types';
 import { feedManager } from '../lib/feed';
 import { tts } from '../lib/tts';
+import { getBackgroundForCard, getRandomGradient } from '../lib/backgrounds';
 import Card from './Card';
+import Background from './Background';
 
 interface FeedProps {
   cards: WikiCard[];
@@ -12,179 +15,225 @@ interface FeedProps {
   onShowAbout: () => void;
 }
 
-// Gesture thresholds
-const SWIPE_THRESHOLD = 50; // px to trigger swipe
-const SWIPE_VELOCITY_THRESHOLD = 0.3; // px/ms for fast swipes
-const WHEEL_THRESHOLD = 100; // accumulated delta to trigger
+type SlotPosition = 'prev' | 'current' | 'next';
 
-type SlidePosition = 'prev' | 'current' | 'next';
+interface SlotContent {
+  card: WikiCard | null;
+  position: SlotPosition;
+}
 
 function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const isResettingScroll = useRef(false);
+  const scrollTimeout = useRef<number | null>(null);
+  const isUserInteracting = useRef(false);
+
+  // Logical index in the cards array
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [offset, setOffset] = useState(0); // Current drag offset in px
-  const [isAnimating, setIsAnimating] = useState(false);
 
-  // Touch tracking
-  const touchStartY = useRef(0);
-  const touchStartTime = useRef(0);
-  const lastTouchY = useRef(0);
+  // The three slots and their current content
+  const [slots, setSlots] = useState<[SlotContent, SlotContent, SlotContent]>([
+    { card: null, position: 'prev' },
+    { card: null, position: 'current' },
+    { card: null, position: 'next' }
+  ]);
 
-  // Wheel accumulator
-  const wheelAccumulator = useRef(0);
-  const wheelTimeout = useRef<number | null>(null);
+  const currentBackground = useMemo(() => {
+    const currentCard = cards[currentIndex];
+    if (!currentCard) {
+      return getRandomGradient();
+    }
+    return getBackgroundForCard(currentCard.id);
+  }, [cards, currentIndex]);
 
-  // Navigate to a specific index
-  const goToIndex = useCallback((newIndex: number, animate = true) => {
-    if (newIndex < 0 || newIndex >= cards.length || newIndex === currentIndex) {
-      // Snap back
-      if (animate) {
-        setIsAnimating(true);
-        setOffset(0);
-        setTimeout(() => setIsAnimating(false), 300);
-      } else {
-        setOffset(0);
+  // Scroll to middle slot
+  const scrollToMiddle = useCallback((instant = true) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const cardHeight = container.clientHeight;
+    isResettingScroll.current = true;
+
+    // Ensure truly instant jumps (avoid CSS smooth scroll during resets)
+    if (instant) {
+      container.style.scrollBehavior = 'auto';
+    }
+
+    container.scrollTo({
+      top: cardHeight, // Middle slot
+      behavior: instant ? 'auto' : 'smooth'
+    });
+
+    // Reset the flag after scroll completes
+    if (instant) {
+      // For instant scroll, reset after two frames, then restore smooth behavior
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          isResettingScroll.current = false;
+          container.style.scrollBehavior = 'smooth';
+        });
+      });
+    } else {
+      // For smooth scroll, wait longer
+      setTimeout(() => {
+        isResettingScroll.current = false;
+      }, 300);
+    }
+  }, []);
+
+  const resetToMiddleAndSetIndex = useCallback((nextIndex: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    isResettingScroll.current = true;
+
+    const cardHeight = container.clientHeight;
+    const prevSnapType = container.style.scrollSnapType;
+    const prevBehavior = container.style.scrollBehavior;
+
+    // Disable snapping during the jump to avoid browser re-snapping to the wrong slot
+    container.style.scrollSnapType = 'none';
+    container.style.scrollBehavior = 'auto';
+
+    container.scrollTo({ top: cardHeight, behavior: 'auto' });
+
+    flushSync(() => {
+      setCurrentIndex(nextIndex);
+    });
+
+    requestAnimationFrame(() => {
+      container.style.scrollSnapType = prevSnapType;
+      container.style.scrollBehavior = prevBehavior || 'smooth';
+      isResettingScroll.current = false;
+    });
+  }, []);
+
+  // Update slot content when cards array or currentIndex changes
+  // Use useLayoutEffect to update DOM synchronously before paint
+  useLayoutEffect(() => {
+    const prevCard = currentIndex > 0 ? cards[currentIndex - 1] : null;
+    const currentCard = cards[currentIndex] ?? null;
+    const nextCard = cards[currentIndex + 1] ?? null;
+
+    // Only update slots if the actual cards changed (compare by id)
+    setSlots(prev => {
+      const prevSame = prev[0].card?.id === prevCard?.id;
+      const currSame = prev[1].card?.id === currentCard?.id;
+      const nextSame = prev[2].card?.id === nextCard?.id;
+
+      if (prevSame && currSame && nextSame) {
+        return prev; // No change needed
+      }
+
+      return [
+        { card: prevCard, position: 'prev' },
+        { card: currentCard, position: 'current' },
+        { card: nextCard, position: 'next' }
+      ];
+    });
+
+  }, [cards, currentIndex, scrollToMiddle]);
+
+  // Initialize scroll position on mount
+  useEffect(() => {
+    scrollToMiddle(true);
+  }, [scrollToMiddle]);
+
+  // Handle scroll end - detect which slot we landed on
+  const handleScrollEnd = useCallback(() => {
+    if (isResettingScroll.current || isUserInteracting.current) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const scrollTop = container.scrollTop;
+    const cardHeight = container.clientHeight;
+    const snapEpsilon = Math.max(12, cardHeight * 0.12);
+    const atPrev = Math.abs(scrollTop - 0) <= snapEpsilon;
+    const atCurrent = Math.abs(scrollTop - cardHeight) <= snapEpsilon;
+    const atNext = Math.abs(scrollTop - cardHeight * 2) <= snapEpsilon;
+
+    // Only react when we're actually snapped close to a slot.
+    if (atPrev && currentIndex > 0) {
+      // Swiped up to previous
+      tts.stop();
+      resetToMiddleAndSetIndex(currentIndex - 1);
+      feedManager.maybePreFetch(currentIndex - 1);
+    } else if (atNext && currentIndex < cards.length - 1) {
+      // Swiped down to next
+      tts.stop();
+      resetToMiddleAndSetIndex(currentIndex + 1);
+      feedManager.maybePreFetch(currentIndex + 1);
+    } else if (!atCurrent) {
+      // If we aren't near any snap point, don't force a reset.
+      // For out-of-bounds at edges, snap back to middle.
+      if ((atPrev && currentIndex === 0) || (atNext && currentIndex === cards.length - 1)) {
+        scrollToMiddle(false);
       }
       return;
+    } else if ((atPrev && currentIndex === 0) || (atNext && currentIndex === cards.length - 1)) {
+      // Tried to scroll past bounds, snap back to middle
+      scrollToMiddle(false);
     }
+  }, [currentIndex, cards.length, resetToMiddleAndSetIndex, scrollToMiddle]);
 
-    // Stop TTS when switching cards
-    tts.stop();
-
-    if (animate) {
-      setIsAnimating(true);
-      // Animate to the target position
-      const direction = newIndex > currentIndex ? -1 : 1;
-      setOffset(direction * window.innerHeight);
-
-      setTimeout(() => {
-        setCurrentIndex(newIndex);
-        setOffset(0);
-        setIsAnimating(false);
-        // Prefetch more if needed
-        feedManager.maybePreFetch(newIndex);
-      }, 300);
-    } else {
-      setCurrentIndex(newIndex);
-      setOffset(0);
-      feedManager.maybePreFetch(newIndex);
-    }
-  }, [currentIndex, cards.length]);
-
-  const goNext = useCallback(() => {
-    goToIndex(currentIndex + 1);
-  }, [currentIndex, goToIndex]);
-
-  const goPrev = useCallback(() => {
-    goToIndex(currentIndex - 1);
-  }, [currentIndex, goToIndex]);
-
-  // Touch handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (isAnimating) return;
-    touchStartY.current = e.touches[0].clientY;
-    lastTouchY.current = e.touches[0].clientY;
-    touchStartTime.current = Date.now();
-  }, [isAnimating]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (isAnimating) return;
-    const currentY = e.touches[0].clientY;
-    const deltaY = currentY - touchStartY.current;
-    lastTouchY.current = currentY;
-
-    // Limit overscroll at boundaries
-    const atStart = currentIndex === 0 && deltaY > 0;
-    const atEnd = currentIndex === cards.length - 1 && deltaY < 0;
-
-    if (atStart || atEnd) {
-      // Rubber band effect
-      setOffset(deltaY * 0.3);
-    } else {
-      setOffset(deltaY);
-    }
-  }, [isAnimating, currentIndex, cards.length]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (isAnimating) return;
-
-    const deltaY = lastTouchY.current - touchStartY.current;
-    const deltaTime = Date.now() - touchStartTime.current;
-    const velocity = Math.abs(deltaY) / deltaTime;
-
-    // Determine if we should transition
-    const shouldTransition =
-      Math.abs(deltaY) > SWIPE_THRESHOLD ||
-      velocity > SWIPE_VELOCITY_THRESHOLD;
-
-    if (shouldTransition) {
-      if (deltaY < 0) {
-        // Swiped up -> go next
-        goNext();
-      } else {
-        // Swiped down -> go prev
-        goPrev();
-      }
-    } else {
-      // Snap back
-      setIsAnimating(true);
-      setOffset(0);
-      setTimeout(() => setIsAnimating(false), 300);
-    }
-  }, [isAnimating, goNext, goPrev]);
-
-  // Wheel/trackpad handler
+  // Listen for scroll end using scrollend event or fallback to debounce
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const handleWheel = (e: WheelEvent) => {
-      if (isAnimating) return;
-      e.preventDefault();
-
-      wheelAccumulator.current += e.deltaY;
-
-      // Clear previous timeout
-      if (wheelTimeout.current) {
-        clearTimeout(wheelTimeout.current);
-      }
-
-      // Check if threshold reached
-      if (Math.abs(wheelAccumulator.current) > WHEEL_THRESHOLD) {
-        if (wheelAccumulator.current > 0) {
-          goNext();
-        } else {
-          goPrev();
-        }
-        wheelAccumulator.current = 0;
-      } else {
-        // Reset accumulator after inactivity
-        wheelTimeout.current = window.setTimeout(() => {
-          wheelAccumulator.current = 0;
-        }, 150);
-      }
+    const setInteracting = (value: boolean) => {
+      isUserInteracting.current = value;
     };
 
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, [isAnimating, goNext, goPrev]);
+    const onPointerDown = () => setInteracting(true);
+    const onPointerUp = () => setInteracting(false);
+    const onTouchStart = () => setInteracting(true);
+    const onTouchEnd = () => setInteracting(false);
 
-  // Keyboard handler
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isAnimating) return;
-      if (e.key === 'ArrowDown' || e.key === 'j') {
-        e.preventDefault();
-        goNext();
-      } else if (e.key === 'ArrowUp' || e.key === 'k') {
-        e.preventDefault();
-        goPrev();
+    container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('pointerup', onPointerUp);
+    container.addEventListener('pointercancel', onPointerUp);
+    container.addEventListener('pointerleave', onPointerUp);
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchend', onTouchEnd);
+    container.addEventListener('touchcancel', onTouchEnd);
+
+    // Prefer scrollend when available, but keep debounce fallback active too
+    const supportsScrollEnd = 'onscrollend' in window;
+    const onScrollEnd = () => handleScrollEnd();
+    if (supportsScrollEnd) {
+      container.addEventListener('scrollend', onScrollEnd);
+    }
+
+    const onScroll = () => {
+      if (scrollTimeout.current) {
+        clearTimeout(scrollTimeout.current);
       }
+      scrollTimeout.current = window.setTimeout(() => {
+        if (isUserInteracting.current) return;
+        handleScrollEnd();
+      }, 160);
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAnimating, goNext, goPrev]);
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      if (supportsScrollEnd) {
+        container.removeEventListener('scrollend', onScrollEnd);
+      }
+      container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('pointerup', onPointerUp);
+      container.removeEventListener('pointercancel', onPointerUp);
+      container.removeEventListener('pointerleave', onPointerUp);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      container.removeEventListener('scroll', onScroll);
+      if (scrollTimeout.current) {
+        clearTimeout(scrollTimeout.current);
+      }
+    };
+  }, [handleScrollEnd]);
 
   // Handle "More like this" - Topic mode
   const handleTopicMode = useCallback((card: WikiCard) => {
@@ -197,34 +246,31 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
     }
   }, [onSettingsChange]);
 
-  // Get card for a given position
-  const getCardForPosition = (position: SlidePosition): WikiCard | null => {
-    const indexMap: Record<SlidePosition, number> = {
-      prev: currentIndex - 1,
-      current: currentIndex,
-      next: currentIndex + 1,
-    };
-    const idx = indexMap[position];
-    return cards[idx] ?? null;
-  };
+  // Manual navigation
+  const handleNext = useCallback(() => {
+    if (currentIndex >= cards.length - 1) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-  // Calculate transform for each slide
-  const getSlideStyle = (position: SlidePosition): React.CSSProperties => {
-    const baseOffset: Record<SlidePosition, number> = {
-      prev: -100,
-      current: 0,
-      next: 100,
-    };
+    const cardHeight = container.clientHeight;
+    container.scrollTo({
+      top: cardHeight * 2, // Next slot
+      behavior: 'smooth'
+    });
+  }, [currentIndex, cards.length]);
 
-    const heightPercent = baseOffset[position];
-    const dragOffset = (offset / window.innerHeight) * 100;
+  const handlePrevious = useCallback(() => {
+    if (currentIndex <= 0) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    return {
-      transform: `translateY(${heightPercent + dragOffset}%)`,
-      transition: isAnimating ? 'transform 0.3s ease-out' : 'none',
-    };
-  };
+    container.scrollTo({
+      top: 0, // Prev slot
+      behavior: 'smooth'
+    });
+  }, [currentIndex]);
 
+  // Loading state - no cards yet
   if (cards.length === 0 && isLoading) {
     return (
       <div className="feed-loading">
@@ -234,6 +280,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
     );
   }
 
+  // No cards available
   if (cards.length === 0) {
     return (
       <div className="feed-loading">
@@ -242,51 +289,48 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
     );
   }
 
-  const positions: SlidePosition[] = ['prev', 'current', 'next'];
-
   return (
-    <div
-      className="feed-recycler"
-      ref={containerRef}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      {positions.map((position) => {
-        const card = getCardForPosition(position);
-        if (!card) return null;
-
-        const isActive = position === 'current';
-        const isPrefetch = position === 'next';
+    <div className="feed-container feed-recycler" ref={containerRef}>
+      <div className="feed-background">
+        <Background config={currentBackground} isActive={true} />
+      </div>
+      {slots.map((slot, index) => {
+        const isActive = index === 1; // Middle slot is always "current"
+        const isFirst = currentIndex === 0 && index === 0;
+        const isLast = currentIndex === cards.length - 1 && index === 2;
+        // Keep slots stable to avoid scroll anchoring when cards swap
+        const slotKey = slot.position;
+        const slotBackground = slot.card ? getBackgroundForCard(slot.card.id) : null;
 
         return (
           <div
-            key={position}
-            className="feed-slide"
-            style={getSlideStyle(position)}
+            key={slotKey}
+            className={`feed-item ${isFirst ? 'feed-item-boundary' : ''} ${isLast ? 'feed-item-boundary' : ''}`}
           >
-            <Card
-              key={card.id}
-              card={card}
-              isActive={isActive}
-              isPrefetch={isPrefetch}
-              settings={settings}
-              onNext={goNext}
-              onPrevious={goPrev}
-              onTopicMode={() => handleTopicMode(card)}
-              onShowAbout={onShowAbout}
-              isTopicModeActive={feedManager.isTopicModeActive()}
-            />
+            {slot.card ? (
+              <Card
+                card={slot.card}
+                isActive={isActive}
+                background={slotBackground!}
+                settings={settings}
+                onNext={handleNext}
+                onPrevious={handlePrevious}
+                onTopicMode={() => slot.card && handleTopicMode(slot.card)}
+                onShowAbout={onShowAbout}
+                isTopicModeActive={feedManager.isTopicModeActive()}
+              />
+            ) : (
+              <div className="card-placeholder">
+                {isLast && isLoading && (
+                  <div className="loading-indicator">
+                    <div className="spinner" />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
-
-      {/* Loading indicator when prefetching */}
-      {isLoading && currentIndex >= cards.length - 2 && (
-        <div className="feed-loading-indicator">
-          <div className="spinner-small" />
-        </div>
-      )}
     </div>
   );
 }
