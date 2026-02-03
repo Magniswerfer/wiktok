@@ -7,12 +7,12 @@
 - [x] Validate CC BY-SA derivative use requirements and Pexels terms (if used).
 - [x] Add robust backoff + retry strategy, timeouts, and offline handling tests.
 - [x] Draft and publish a clear privacy policy (tracking, cookies/localStorage).
-- Minimize data collection by default.
-- Run basic security review and dependency audit.
+- [x] Run basic security review and dependency audit.
 
 ## Phase 1 — Beta Quality
 - Set performance targets: TTI <2s on mid-range mobile, scroll frame drops <1%, memory stable over long sessions.
 - Add monitoring: error reporting, performance telemetry, and alerting.
+- Minimize data collection by default (when adding database/analytics).
 - Add observability: tracing for fetches, cache hit rates, crash analytics.
 - Implement report/flag flow for offensive or inaccurate content.
 - Add content safety filters and/or disclaimers for sensitive content.
