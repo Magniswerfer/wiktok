@@ -58,6 +58,14 @@ function App() {
     document.body.classList.toggle('frame-mode', isFrameMode);
   }, [isFrameMode]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.classList.toggle('modal-open', showAbout);
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, [showAbout]);
+
   // Subscribe to feed updates
   useEffect(() => {
     const unsubscribe = feedManager.subscribe((newCards, loading, feedError) => {
@@ -158,6 +166,7 @@ function App() {
           }}
           onEnableAudio={handleAudioUnlock}
           isFrameMode={isFrameMode}
+          isModalOpen={showAbout}
         />
       )}
 

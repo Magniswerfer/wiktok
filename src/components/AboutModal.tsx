@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { getAllBackgroundAttributions } from '../lib/backgrounds';
 
 interface AboutModalProps {
@@ -6,6 +7,13 @@ interface AboutModalProps {
 
 function AboutModal({ onClose }: AboutModalProps) {
   const backgroundAttributions = getAllBackgroundAttributions();
+
+  useEffect(() => {
+    document.body.classList.add('modal-open');
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, []);
 
   return (
     <div className="modal-overlay" onClick={onClose}>

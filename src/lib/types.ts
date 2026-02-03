@@ -8,6 +8,7 @@ export type WikiCard = {
   extract: string;
   url: string; // canonical Wikipedia URL
   thumbnailUrl?: string;
+  imageAttribution?: ImageAttribution;
   pageid?: number;
   fetchedAt: number;
   source: {
@@ -16,6 +17,19 @@ export type WikiCard = {
     attributionText: string;
   };
 };
+
+/**
+ * Attribution details for a Wikipedia/Wikimedia image
+ */
+export interface ImageAttribution {
+  artist?: string;
+  credit?: string;
+  attribution?: string;
+  license?: string;
+  licenseUrl?: string;
+  filePageUrl?: string;
+  sourceUrl?: string;
+}
 
 /**
  * Raw response from Wikipedia REST API summary endpoint

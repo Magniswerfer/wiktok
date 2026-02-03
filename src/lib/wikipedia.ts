@@ -1,6 +1,7 @@
-import type { WikiCard, WikipediaSummaryResponse, WikipediaRelatedResponse } from './types';
+import type { WikiCard, WikipediaSummaryResponse, WikipediaRelatedResponse, ImageAttribution } from './types';
 
 const API_BASE = 'https://en.wikipedia.org/api/rest_v1';
+const COMMONS_API_BASE = 'https://commons.wikimedia.org/w/api.php';
 const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_DELAY_MS = 1000;
@@ -54,6 +55,89 @@ function calculateBackoffDelay(attempt: number, baseDelayMs: number): number {
   const jitter = exponentialDelay * Math.random() * 0.25;
   // Cap at 30 seconds
   return Math.min(exponentialDelay + jitter, 30000);
+}
+
+function stripHtml(value: string | undefined): string {
+  if (!value) return '';
+  if (typeof document !== 'undefined') {
+    const temp = document.createElement('div');
+    temp.innerHTML = value;
+    return (temp.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+  return value.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function extractFilenameFromUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname;
+    const filename = path.substring(path.lastIndexOf('/') + 1);
+    return filename ? decodeURIComponent(filename) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getMediaWikiApiBase(imageUrl: string, lang: string): string {
+  if (imageUrl.includes('/commons/')) {
+    return COMMONS_API_BASE;
+  }
+  return `https://${lang}.wikipedia.org/w/api.php`;
+}
+
+async function fetchImageAttribution(
+  imageUrl: string,
+  lang: string,
+  options?: FetchOptions
+): Promise<ImageAttribution | undefined> {
+  const filename = extractFilenameFromUrl(imageUrl);
+  if (!filename) return undefined;
+
+  const apiBase = getMediaWikiApiBase(imageUrl, lang);
+  const params = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    origin: '*',
+    prop: 'imageinfo',
+    iiprop: 'extmetadata|url',
+    titles: `File:${filename}`
+  });
+
+  try {
+    const response = await fetchWithTimeout(`${apiBase}?${params.toString()}`, {
+      headers: { 'Accept': 'application/json' }
+    }, options);
+
+    if (!response.ok) return undefined;
+
+    const data = await response.json();
+    const pages = data?.query?.pages;
+    const firstKey = pages ? Object.keys(pages)[0] : undefined;
+    const page = firstKey ? pages[firstKey] : undefined;
+    const info = page?.imageinfo?.[0];
+    const ext = info?.extmetadata;
+
+    if (!info || !ext) return undefined;
+
+    const artist = stripHtml(ext.Artist?.value);
+    const credit = stripHtml(ext.Credit?.value);
+    const attribution = stripHtml(ext.Attribution?.value);
+    const license = stripHtml(ext.LicenseShortName?.value || ext.UsageTerms?.value);
+    const licenseUrl = ext.LicenseUrl?.value;
+
+    return {
+      artist: artist || undefined,
+      credit: credit || undefined,
+      attribution: attribution || undefined,
+      license: license || undefined,
+      licenseUrl: licenseUrl || undefined,
+      filePageUrl: info.descriptionurl,
+      sourceUrl: info.url
+    };
+  } catch (error) {
+    console.warn('Failed to fetch image attribution:', error);
+    return undefined;
+  }
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, options?: FetchOptions): Promise<Response> {
@@ -139,7 +223,12 @@ async function fetchWithRetry(url: string, init: RequestInit, options?: FetchOpt
 /**
  * Convert Wikipedia API response to our WikiCard format
  */
-function responseToCard(response: WikipediaSummaryResponse): WikiCard {
+async function responseToCard(response: WikipediaSummaryResponse, options?: FetchOptions): Promise<WikiCard> {
+  const imageUrl = response.originalimage?.source ?? response.thumbnail?.source;
+  const imageAttribution = imageUrl
+    ? await fetchImageAttribution(imageUrl, response.lang, options)
+    : undefined;
+
   return {
     id: `${response.lang}:${response.pageid}`,
     lang: response.lang,
@@ -147,6 +236,7 @@ function responseToCard(response: WikipediaSummaryResponse): WikiCard {
     extract: response.extract,
     url: response.content_urls.desktop.page,
     thumbnailUrl: response.thumbnail?.source,
+    imageAttribution,
     pageid: response.pageid,
     fetchedAt: Date.now(),
     source: {
@@ -173,7 +263,7 @@ export async function fetchRandomSummary(options?: FetchOptions): Promise<WikiCa
   }
 
   const data: WikipediaSummaryResponse = await response.json();
-  return responseToCard(data);
+  return responseToCard(data, options);
 }
 
 /**
@@ -193,7 +283,7 @@ export async function fetchSummaryByTitle(title: string, options?: FetchOptions)
   }
 
   const data: WikipediaSummaryResponse = await response.json();
-  return responseToCard(data);
+  return responseToCard(data, options);
 }
 
 /**
@@ -217,7 +307,7 @@ export async function fetchRelatedPages(title: string, options?: FetchOptions): 
   }
 
   const data: WikipediaRelatedResponse = await response.json();
-  return data.pages.map(responseToCard);
+  return Promise.all(data.pages.map(page => responseToCard(page, options)));
 }
 
 /**

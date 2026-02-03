@@ -14,6 +14,7 @@ interface ControlsProps {
   onPause: () => void;
   onSave: () => void;
   onTopicMode: () => void;
+  onShowAbout: () => void;
 }
 
 function Controls({
@@ -29,7 +30,8 @@ function Controls({
   onListen,
   onPause,
   onSave,
-  onTopicMode
+  onTopicMode,
+  onShowAbout
 }: ControlsProps) {
   const isSpeaking = ttsState === 'speaking';
   const isPaused = ttsState === 'paused';
@@ -126,6 +128,16 @@ function Controls({
       >
         <span className="control-icon">📤</span>
         <span className="control-label">Share</span>
+      </button>
+
+      {/* About Button */}
+      <button
+        className="control-button"
+        onClick={onShowAbout}
+        aria-label="About WikiTok"
+      >
+        <span className="control-icon">ℹ️</span>
+        <span className="control-label">About</span>
       </button>
     </div>
   );

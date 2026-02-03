@@ -35,6 +35,26 @@ const mockWikipediaResponse = {
   extract_html: '<p>This is a test article extract.</p>',
 };
 
+const mockImageInfoResponse = {
+  query: {
+    pages: {
+      1: {
+        imageinfo: [
+          {
+            url: 'https://upload.wikimedia.org/test.jpg',
+            descriptionurl: 'https://commons.wikimedia.org/wiki/File:Test.jpg',
+            extmetadata: {
+              Artist: { value: 'Test Artist' },
+              LicenseShortName: { value: 'CC BY-SA 4.0' },
+              LicenseUrl: { value: 'https://creativecommons.org/licenses/by-sa/4.0/' }
+            }
+          }
+        ]
+      }
+    }
+  }
+};
+
 describe('Wikipedia API with Retry Logic', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,10 +68,15 @@ describe('Wikipedia API with Retry Logic', () => {
 
   describe('fetchRandomSummary', () => {
     it('should return a WikiCard on successful fetch', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockWikipediaResponse),
-      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockWikipediaResponse),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockImageInfoResponse),
+        });
 
       const promise = fetchRandomSummary({ maxRetries: 0 });
       await vi.runAllTimersAsync();
@@ -60,7 +85,7 @@ describe('Wikipedia API with Retry Logic', () => {
       expect(card.title).toBe('Test Article');
       expect(card.extract).toBe('This is a test article extract.');
       expect(card.source.license).toBe('CC BY-SA 4.0');
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it('should retry on 500 server error', async () => {
@@ -70,6 +95,10 @@ describe('Wikipedia API with Retry Logic', () => {
         .mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(mockWikipediaResponse),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockImageInfoResponse),
         });
 
       const promise = fetchRandomSummary({ maxRetries: 3, baseDelayMs: 100 });
@@ -79,7 +108,7 @@ describe('Wikipedia API with Retry Logic', () => {
       const card = await promise;
 
       expect(card.title).toBe('Test Article');
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
     it('should retry on 429 rate limit', async () => {
@@ -88,6 +117,10 @@ describe('Wikipedia API with Retry Logic', () => {
         .mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve(mockWikipediaResponse),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockImageInfoResponse),
         });
 
       const promise = fetchRandomSummary({ maxRetries: 3, baseDelayMs: 100 });
@@ -95,7 +128,7 @@ describe('Wikipedia API with Retry Logic', () => {
       const card = await promise;
 
       expect(card.title).toBe('Test Article');
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
     it('should NOT retry on 404 error', async () => {
@@ -160,10 +193,15 @@ describe('Wikipedia API with Retry Logic', () => {
 
   describe('fetchSummaryByTitle', () => {
     it('should fetch article by title', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockWikipediaResponse),
-      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockWikipediaResponse),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockImageInfoResponse),
+        });
 
       const promise = fetchSummaryByTitle('Test Article', { maxRetries: 0 });
       await vi.runAllTimersAsync();
@@ -189,10 +227,19 @@ describe('Wikipedia API with Retry Logic', () => {
     });
 
     it('should return related pages on success', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ pages: [mockWikipediaResponse, mockWikipediaResponse] }),
-      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ pages: [mockWikipediaResponse, mockWikipediaResponse] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockImageInfoResponse),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockImageInfoResponse),
+        });
 
       const promise = fetchRelatedPages('Test Article', { maxRetries: 0 });
       await vi.runAllTimersAsync();
@@ -204,5 +251,4 @@ describe('Wikipedia API with Retry Logic', () => {
   });
 
 });
-
 

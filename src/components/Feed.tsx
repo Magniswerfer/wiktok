@@ -19,6 +19,7 @@ interface FeedProps {
   onIntroComplete: () => void;
   onEnableAudio: () => void;
   isFrameMode: boolean;
+  isModalOpen: boolean;
 }
 
 type SlotPosition = 'prev' | 'current' | 'next';
@@ -39,7 +40,8 @@ function Feed({
   showIntro,
   onIntroComplete,
   onEnableAudio,
-  isFrameMode
+  isFrameMode,
+  isModalOpen
 }: FeedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const backgroundRef = useRef<HTMLDivElement>(null);
@@ -369,7 +371,7 @@ function Feed({
 
   // Proxy scroll gestures outside the phone frame on tablet/desktop
   useEffect(() => {
-    if (!isFrameMode) return;
+    if (!isFrameMode || isModalOpen) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -420,7 +422,7 @@ function Feed({
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [isFrameMode]);
+  }, [isFrameMode, isModalOpen]);
 
   // Handle "More like this" - Topic mode
   const handleTopicMode = useCallback((card: WikiCard) => {
