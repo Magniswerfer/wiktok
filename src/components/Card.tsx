@@ -3,6 +3,7 @@ import type { WikiCard, AppSettings, TTSState, BackgroundConfig } from '../lib/t
 import { tts } from '../lib/tts';
 import { saveCard, unsaveCard, isCardSaved } from '../lib/cache';
 import Controls from './Controls';
+import CardImage from './CardImage';
 
 interface CardProps {
   card: WikiCard;
@@ -14,6 +15,8 @@ interface CardProps {
   onTopicMode: () => void;
   onShowAbout: () => void;
   isTopicModeActive: boolean;
+  nextThumbnailUrl?: string | null;
+  scrollProgress?: number;
 }
 
 function Card({
@@ -23,7 +26,9 @@ function Card({
   settings,
   onTopicMode,
   onShowAbout,
-  isTopicModeActive
+  isTopicModeActive,
+  nextThumbnailUrl,
+  scrollProgress = 0
 }: CardProps) {
   const [ttsState, setTtsState] = useState<TTSState>(tts.state);
   const [isSaved, setIsSaved] = useState(() => isCardSaved(card.id));
@@ -80,10 +85,11 @@ function Card({
           <div className="card-media">
             <div className="card-media-glow" />
             <div className="card-media-frame">
-              <img
+              <CardImage
                 src={card.thumbnailUrl}
+                nextSrc={nextThumbnailUrl}
                 alt={`Illustration from Wikipedia for ${card.title}`}
-                loading="lazy"
+                scrollProgress={scrollProgress}
               />
             </div>
           </div>

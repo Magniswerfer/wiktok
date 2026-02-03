@@ -30,6 +30,8 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
 
   // Logical index in the cards array
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [scrollDirection, setScrollDirection] = useState<'up' | 'down' | null>(null);
 
   // The three slots and their current content
   const [slots, setSlots] = useState<[SlotContent, SlotContent, SlotContent]>([
@@ -45,6 +47,32 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
     }
     return getBackgroundForCard(currentCard.id);
   }, [cards, currentIndex]);
+
+  // Get the upcoming background based on scroll direction
+  const nextBackground = useMemo(() => {
+    if (!scrollDirection) return null;
+
+    const targetIndex = scrollDirection === 'down'
+      ? currentIndex + 1  // Scrolling down = going to next card
+      : currentIndex - 1; // Scrolling up = going to previous card
+
+    const targetCard = cards[targetIndex];
+    if (!targetCard) return null;
+
+    return getBackgroundForCard(targetCard.id);
+  }, [cards, currentIndex, scrollDirection]);
+
+  // Get the upcoming thumbnail based on scroll direction
+  const nextThumbnailUrl = useMemo(() => {
+    if (!scrollDirection) return null;
+
+    const targetIndex = scrollDirection === 'down'
+      ? currentIndex + 1
+      : currentIndex - 1;
+
+    const targetCard = cards[targetIndex];
+    return targetCard?.thumbnailUrl || null;
+  }, [cards, currentIndex, scrollDirection]);
 
   // Scroll to middle slot
   const scrollToMiddle = useCallback((instant = true) => {
@@ -99,6 +127,8 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
 
     flushSync(() => {
       setCurrentIndex(nextIndex);
+      setScrollProgress(0); // Reset progress - new video appears immediately
+      setScrollDirection(null);
     });
 
     requestAnimationFrame(() => {
@@ -207,6 +237,22 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
     }
 
     const onScroll = () => {
+      // Calculate scroll progress for video fade effect
+      const cardHeight = container.clientHeight;
+      const scrollTop = container.scrollTop;
+      const distanceFromMiddle = scrollTop - cardHeight;
+      const progress = Math.min(Math.abs(distanceFromMiddle) / cardHeight, 1);
+      setScrollProgress(progress);
+
+      // Determine scroll direction
+      if (distanceFromMiddle > 10) {
+        setScrollDirection('down'); // Scrolling toward next card
+      } else if (distanceFromMiddle < -10) {
+        setScrollDirection('up'); // Scrolling toward previous card
+      } else {
+        setScrollDirection(null);
+      }
+
       if (scrollTimeout.current) {
         clearTimeout(scrollTimeout.current);
       }
@@ -292,7 +338,12 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
   return (
     <div className="feed-container feed-recycler" ref={containerRef}>
       <div className="feed-background">
-        <Background config={currentBackground} isActive={true} />
+        <Background
+          config={currentBackground}
+          nextConfig={nextBackground}
+          isActive={true}
+          scrollProgress={scrollProgress}
+        />
       </div>
       {slots.map((slot, index) => {
         const isActive = index === 1; // Middle slot is always "current"
@@ -300,7 +351,7 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
         const isLast = currentIndex === cards.length - 1 && index === 2;
         // Keep slots stable to avoid scroll anchoring when cards swap
         const slotKey = slot.position;
-        const slotBackground = slot.card ? getBackgroundForCard(slot.card.id) : null;
+        const slotBackground = slot.card ? getBackgroundForCard(slot.card.id) : getRandomGradient();
 
         return (
           <div
@@ -311,13 +362,15 @@ function Feed({ cards, isLoading, settings, onSettingsChange, onShowAbout }: Fee
               <Card
                 card={slot.card}
                 isActive={isActive}
-                background={slotBackground!}
+                background={slotBackground}
                 settings={settings}
                 onNext={handleNext}
                 onPrevious={handlePrevious}
                 onTopicMode={() => slot.card && handleTopicMode(slot.card)}
                 onShowAbout={onShowAbout}
                 isTopicModeActive={feedManager.isTopicModeActive()}
+                nextThumbnailUrl={isActive ? nextThumbnailUrl : null}
+                scrollProgress={isActive ? scrollProgress : 0}
               />
             ) : (
               <div className="card-placeholder">

@@ -86,7 +86,7 @@ body {
 }
 
 .feed-background {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   height: 100%;
@@ -202,12 +202,12 @@ body {
   height: 100%;
   object-fit: cover;
   z-index: 0;
-  opacity: 0;
-  transition: opacity 0.5s ease;
+  background: #000;
 }
 
-.background-video.loaded {
-  opacity: 1;
+.background-video.transitioning {
+  opacity: 0;
+  transition: opacity 0.05s ease;
 }
 
 /* Background Gradient */

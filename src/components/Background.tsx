@@ -3,123 +3,202 @@ import type { BackgroundConfig } from '../lib/types';
 
 interface BackgroundProps {
   config: BackgroundConfig;
+  nextConfig?: BackgroundConfig | null;
   isActive: boolean;
+  scrollProgress?: number;
 }
 
-function Background({ config, isActive }: BackgroundProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [activeSrc, setActiveSrc] = useState<string | null>(
-    config.type === 'video' ? config.src ?? null : null
-  );
+function Background({ config, nextConfig, isActive, scrollProgress = 0 }: BackgroundProps) {
+  const videoARef = useRef<HTMLVideoElement>(null);
+  const videoBRef = useRef<HTMLVideoElement>(null);
 
-  // Handle "canplay" - video has enough data to start playback
-  const handleCanPlay = useCallback(() => {
-    setIsReady(true);
-  }, []);
+  // Track which video slot (A or B) is the "current" one
+  const [activeSlot, setActiveSlot] = useState<'A' | 'B'>('A');
+  const [slotASrc, setSlotASrc] = useState<string | null>(null);
+  const [slotBSrc, setSlotBSrc] = useState<string | null>(null);
+  const [nextVideoReady, setNextVideoReady] = useState(false);
 
-  // Preload next video and only swap when it can play to reduce flashes
+  // Use refs to track previous values without causing re-renders
+  const prevConfigSrcRef = useRef<string | null>(null);
+  const prevNextConfigSrcRef = useRef<string | null>(null);
+
+  // Get current config src
+  const configSrc = config.type === 'video' ? config.src : null;
+  const nextConfigSrc = nextConfig?.type === 'video' ? nextConfig.src : null;
+
+  // Handle config changes (main video source)
   useEffect(() => {
-    if (config.type !== 'video' || !config.src) {
-      setActiveSrc(null);
-      setIsReady(false);
+    if (!configSrc) {
+      setSlotASrc(null);
+      setSlotBSrc(null);
+      prevConfigSrcRef.current = null;
       return;
     }
 
-    if (!activeSrc) {
-      setActiveSrc(config.src);
-      setIsReady(false);
+    // Skip if same as before
+    if (configSrc === prevConfigSrcRef.current) {
       return;
     }
 
-    if (activeSrc === config.src) {
+    // First load - set slot A
+    if (!prevConfigSrcRef.current) {
+      setSlotASrc(configSrc);
+      setActiveSlot('A');
+      prevConfigSrcRef.current = configSrc;
       return;
     }
 
-    let cancelled = false;
-    const preloader = document.createElement('video');
-    preloader.preload = 'auto';
-    preloader.muted = true;
-    preloader.playsInline = true;
-    preloader.src = config.src;
+    // Check if new config matches what's in the inactive slot (swap case)
+    const inactiveSlotSrc = activeSlot === 'A' ? slotBSrc : slotASrc;
 
-    const cleanup = () => {
-      preloader.removeEventListener('canplay', onCanPlay);
-      preloader.removeEventListener('error', onError);
-      preloader.src = '';
-    };
+    if (configSrc === inactiveSlotSrc) {
+      // Swap! The preloaded video becomes current
+      setActiveSlot(activeSlot === 'A' ? 'B' : 'A');
+      setNextVideoReady(false);
+      prevConfigSrcRef.current = configSrc;
+      return;
+    }
 
-    const onCanPlay = () => {
-      if (cancelled) return;
-      setActiveSrc(config.src);
-      setIsReady(true);
-      cleanup();
-    };
+    // New video we haven't preloaded - load it in active slot (will cause brief flash)
+    if (activeSlot === 'A') {
+      setSlotASrc(configSrc);
+    } else {
+      setSlotBSrc(configSrc);
+    }
+    prevConfigSrcRef.current = configSrc;
+  }, [configSrc]); // Only depend on configSrc, read other values directly
 
-    const onError = () => {
-      if (cancelled) return;
-      setActiveSrc(config.src);
-      setIsReady(false);
-      cleanup();
-    };
-
-    preloader.addEventListener('canplay', onCanPlay);
-    preloader.addEventListener('error', onError);
-    preloader.load();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, [config.type, config.src, activeSrc]);
-
-  // Handle video play/pause based on active state
+  // Handle next config changes (preloading)
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || config.type !== 'video' || !activeSrc) return;
-
-    if (isActive && isReady) {
-      // Only call play() if video is actually paused
-      if (video.paused) {
-        video.play().catch(() => {
-          // Autoplay blocked - that's ok
-        });
+    if (!nextConfigSrc) {
+      if (prevNextConfigSrcRef.current) {
+        setNextVideoReady(false);
+        prevNextConfigSrcRef.current = null;
       }
-    } else if (!isActive) {
-      // Pause when not active (but don't reset position)
-      if (!video.paused) {
-        video.pause();
-      }
+      return;
     }
-  }, [isActive, isReady, config.type, activeSrc]);
 
-  if (config.type === 'video' && activeSrc) {
+    // Skip if same as before
+    if (nextConfigSrc === prevNextConfigSrcRef.current) {
+      return;
+    }
+
+    // Skip if it's the same as current
+    if (nextConfigSrc === configSrc) {
+      return;
+    }
+
+    // Load into inactive slot
+    const inactiveSlot = activeSlot === 'A' ? 'B' : 'A';
+    if (inactiveSlot === 'A') {
+      setSlotASrc(nextConfigSrc);
+    } else {
+      setSlotBSrc(nextConfigSrc);
+    }
+    setNextVideoReady(false);
+    prevNextConfigSrcRef.current = nextConfigSrc;
+  }, [nextConfigSrc, configSrc, activeSlot]);
+
+  // Video ready handlers
+  const handleVideoACanPlay = useCallback(() => {
+    const video = videoARef.current;
+    if (video && video.paused) {
+      video.play().catch(() => {});
+    }
+    if (activeSlot !== 'A') {
+      setNextVideoReady(true);
+    }
+  }, [activeSlot]);
+
+  const handleVideoBCanPlay = useCallback(() => {
+    const video = videoBRef.current;
+    if (video && video.paused) {
+      video.play().catch(() => {});
+    }
+    if (activeSlot !== 'B') {
+      setNextVideoReady(true);
+    }
+  }, [activeSlot]);
+
+  // Sync playback for active video
+  useEffect(() => {
+    const activeVideo = activeSlot === 'A' ? videoARef.current : videoBRef.current;
+    if (!activeVideo) return;
+
+    if (isActive && activeVideo.readyState >= 2 && activeVideo.paused) {
+      activeVideo.play().catch(() => {});
+    }
+  }, [isActive, activeSlot]);
+
+  // Calculate opacities
+  const currentOpacity = 1 - scrollProgress;
+  const nextOpacity = nextVideoReady && scrollProgress > 0.2
+    ? Math.min((scrollProgress - 0.2) / 0.5, 1)
+    : 0;
+
+  const hasAnyVideo = slotASrc || slotBSrc;
+
+  if (hasAnyVideo) {
+    const slotAOpacity = activeSlot === 'A' ? currentOpacity : nextOpacity;
+    const slotBOpacity = activeSlot === 'B' ? currentOpacity : nextOpacity;
+    const slotAZIndex = activeSlot === 'A' ? 2 : 1;
+    const slotBZIndex = activeSlot === 'B' ? 2 : 1;
+
     return (
       <>
-        {/* Loading placeholder while video loads */}
-        {!isReady && (
-          <div className="background-gradient" style={{
-            '--gradient-color-1': '#0b0f14',
-            '--gradient-color-2': '#0f1722',
-            '--gradient-color-3': '#141c28'
-          } as React.CSSProperties} />
-        )}
+        {/* Black base layer */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: '#000',
+            zIndex: 0,
+          }}
+        />
+
+        {/* Video slot A */}
         <video
-          ref={videoRef}
-          className={`background-video ${isReady ? 'loaded' : ''}`}
-          src={activeSrc}
+          ref={videoARef}
+          className="background-video"
+          style={{
+            opacity: slotAOpacity,
+            zIndex: slotAZIndex,
+            display: slotASrc ? 'block' : 'none'
+          }}
+          src={slotASrc || undefined}
+          autoPlay
           loop
           muted
           playsInline
           preload="auto"
-          onCanPlay={handleCanPlay}
-          crossOrigin="anonymous"
+          onCanPlay={handleVideoACanPlay}
+        />
+
+        {/* Video slot B */}
+        <video
+          ref={videoBRef}
+          className="background-video"
+          style={{
+            opacity: slotBOpacity,
+            zIndex: slotBZIndex,
+            display: slotBSrc ? 'block' : 'none'
+          }}
+          src={slotBSrc || undefined}
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          onCanPlay={handleVideoBCanPlay}
         />
       </>
     );
   }
 
-  // Gradient background
+  // Gradient fallback
   const gradientStyle = {
     '--gradient-color-1': config.colors?.[0] || '#0b0f14',
     '--gradient-color-2': config.colors?.[1] || '#0f1722',
@@ -129,7 +208,7 @@ function Background({ config, isActive }: BackgroundProps) {
   return (
     <div
       className={`background-gradient ${isActive ? 'animate' : ''}`}
-      style={gradientStyle}
+      style={{ ...gradientStyle, opacity: 1 - scrollProgress }}
     />
   );
 }
