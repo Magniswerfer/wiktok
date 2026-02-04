@@ -1,5 +1,8 @@
 import { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
 
+// Tracks image URLs that have completed at least one real <img> load event.
+const loadedImageUrls = new Set<string>();
+
 interface CardImageProps {
   src: string | null;
   nextSrc?: string | null;
@@ -53,11 +56,7 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
     _setSlotBLoaded(next);
   }, []);
 
-  const isImageCached = useCallback((url: string) => {
-    const img = new Image();
-    img.src = url;
-    return img.complete && img.naturalWidth > 0;
-  }, []);
+  const isKnownLoaded = useCallback((url: string) => loadedImageUrls.has(url), []);
 
   // Handle src changes (main image source)
   useLayoutEffect(() => {
@@ -81,7 +80,7 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
       setSlotASrc(src);
       setActiveSlot('A');
       prevSrcRef.current = src;
-      setSlotALoaded(isImageCached(src));
+      setSlotALoaded(isKnownLoaded(src));
       return;
     }
 
@@ -103,16 +102,25 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
     }
 
     // New image we haven't preloaded - load it in inactive slot and swap when ready
+    const isCached = isKnownLoaded(src);
     if (inactiveSlot === 'A') {
       setSlotASrc(src);
-      setSlotALoaded(isImageCached(src));
+      setSlotALoaded(isCached);
     } else {
       setSlotBSrc(src);
-      setSlotBLoaded(isImageCached(src));
+      setSlotBLoaded(isCached);
     }
-    pendingSwapSrcRef.current = src;
+
+    // Cached images may not reliably fire a new onLoad event when src is reused.
+    // Swap immediately so back-swipes never keep showing the previous card image.
+    if (isCached) {
+      setActiveSlot(inactiveSlot);
+      pendingSwapSrcRef.current = null;
+    } else {
+      pendingSwapSrcRef.current = src;
+    }
     prevSrcRef.current = src;
-  }, [src, isImageCached, setActiveSlot, setSlotALoaded, setSlotASrc, setSlotBLoaded, setSlotBSrc]);
+  }, [src, isKnownLoaded, setActiveSlot, setSlotALoaded, setSlotASrc, setSlotBLoaded, setSlotBSrc]);
 
   // Handle next src changes (preloading)
   useEffect(() => {
@@ -135,16 +143,19 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
     const inactiveSlot = activeSlot === 'A' ? 'B' : 'A';
     if (inactiveSlot === 'A') {
       setSlotASrc(nextSrc);
-      setSlotALoaded(isImageCached(nextSrc));
+      setSlotALoaded(isKnownLoaded(nextSrc));
     } else {
       setSlotBSrc(nextSrc);
-      setSlotBLoaded(isImageCached(nextSrc));
+      setSlotBLoaded(isKnownLoaded(nextSrc));
     }
     prevNextSrcRef.current = nextSrc;
-  }, [nextSrc, src, activeSlot, isImageCached, setSlotALoaded, setSlotASrc, setSlotBLoaded, setSlotBSrc]);
+  }, [nextSrc, src, activeSlot, isKnownLoaded, setSlotALoaded, setSlotASrc, setSlotBLoaded, setSlotBSrc]);
 
   // Image load handlers
   const handleImageALoad = useCallback(() => {
+    if (slotASrcRef.current) {
+      loadedImageUrls.add(slotASrcRef.current);
+    }
     setSlotALoaded(true);
     if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotASrcRef.current) {
       setActiveSlot('A');
@@ -153,6 +164,9 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
   }, [setActiveSlot, setSlotALoaded]);
 
   const handleImageBLoad = useCallback(() => {
+    if (slotBSrcRef.current) {
+      loadedImageUrls.add(slotBSrcRef.current);
+    }
     setSlotBLoaded(true);
     if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotBSrcRef.current) {
       setActiveSlot('B');
