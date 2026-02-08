@@ -1,7 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
-
-// Tracks image URLs that have completed at least one real <img> load event.
-const loadedImageUrls = new Set<string>();
+import { isUrlLoaded, markUrlAsLoaded } from '../lib/urlLoadCache';
 
 interface CardImageProps {
   src: string | null;
@@ -56,7 +54,7 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
     _setSlotBLoaded(next);
   }, []);
 
-  const isKnownLoaded = useCallback((url: string) => loadedImageUrls.has(url), []);
+  const isKnownLoaded = useCallback((url: string) => isUrlLoaded(url), []);
 
   // Handle src changes (main image source)
   useLayoutEffect(() => {
@@ -154,7 +152,7 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
   // Image load handlers
   const handleImageALoad = useCallback(() => {
     if (slotASrcRef.current) {
-      loadedImageUrls.add(slotASrcRef.current);
+      markUrlAsLoaded(slotASrcRef.current);
     }
     setSlotALoaded(true);
     if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotASrcRef.current) {
@@ -165,7 +163,7 @@ function CardImage({ src, nextSrc, alt, scrollProgress = 0 }: CardImageProps) {
 
   const handleImageBLoad = useCallback(() => {
     if (slotBSrcRef.current) {
-      loadedImageUrls.add(slotBSrcRef.current);
+      markUrlAsLoaded(slotBSrcRef.current);
     }
     setSlotBLoaded(true);
     if (pendingSwapSrcRef.current && pendingSwapSrcRef.current === slotBSrcRef.current) {

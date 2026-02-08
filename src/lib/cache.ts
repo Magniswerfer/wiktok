@@ -9,6 +9,16 @@ interface CacheData {
   timestamp: number;
 }
 
+function canUseLocalStorage(): boolean {
+  try {
+    return typeof localStorage !== 'undefined'
+      && typeof localStorage.getItem === 'function'
+      && typeof localStorage.setItem === 'function';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Get default app settings
  */
@@ -25,6 +35,7 @@ export function getDefaultSettings(): AppSettings {
  * Load settings from localStorage
  */
 export function loadSettings(): AppSettings {
+  if (!canUseLocalStorage()) return getDefaultSettings();
   try {
     const stored = localStorage.getItem(SETTINGS_KEY);
     if (stored) {
@@ -40,6 +51,7 @@ export function loadSettings(): AppSettings {
  * Save settings to localStorage
  */
 export function saveSettings(settings: AppSettings): void {
+  if (!canUseLocalStorage()) return;
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch (e) {
@@ -51,6 +63,7 @@ export function saveSettings(settings: AppSettings): void {
  * Load cached cards from localStorage
  */
 export function loadCachedCards(): WikiCard[] {
+  if (!canUseLocalStorage()) return [];
   try {
     const stored = localStorage.getItem(CACHE_KEY);
     if (stored) {
@@ -70,6 +83,7 @@ export function loadCachedCards(): WikiCard[] {
  * Save cards to localStorage cache
  */
 export function saveCachedCards(cards: WikiCard[]): void {
+  if (!canUseLocalStorage()) return;
   try {
     const data: CacheData = {
       cards: cards.slice(0, 50), // Limit cache size
@@ -85,6 +99,7 @@ export function saveCachedCards(cards: WikiCard[]): void {
  * Clear the cache
  */
 export function clearCache(): void {
+  if (!canUseLocalStorage()) return;
   try {
     localStorage.removeItem(CACHE_KEY);
   } catch (e) {
@@ -121,6 +136,7 @@ export function removeFromCache(cardId: string): void {
 const SAVED_KEY = 'wikitok_saved';
 
 export function loadSavedCards(): WikiCard[] {
+  if (!canUseLocalStorage()) return [];
   try {
     const stored = localStorage.getItem(SAVED_KEY);
     if (stored) {
@@ -133,6 +149,7 @@ export function loadSavedCards(): WikiCard[] {
 }
 
 export function saveCard(card: WikiCard): void {
+  if (!canUseLocalStorage()) return;
   try {
     const saved = loadSavedCards();
     if (!saved.some(c => c.id === card.id)) {
@@ -145,6 +162,7 @@ export function saveCard(card: WikiCard): void {
 }
 
 export function unsaveCard(cardId: string): void {
+  if (!canUseLocalStorage()) return;
   try {
     const saved = loadSavedCards();
     const filtered = saved.filter(c => c.id !== cardId);

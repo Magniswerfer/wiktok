@@ -8,6 +8,12 @@ import { getBackgroundForCard, getRandomGradient } from '../lib/backgrounds';
 import Card from './Card';
 import IntroCard from './IntroCard';
 import Background from './Background';
+import {
+  createEmptySlot,
+  canNavigateNext,
+  shouldRebaseOnIntroDismiss,
+  rebaseIndexAfterIntroDismiss
+} from './feedUtils';
 
 interface FeedProps {
   cards: WikiCard[];
@@ -48,6 +54,7 @@ function Feed({
   const isResettingScroll = useRef(false);
   const scrollTimeout = useRef<number | null>(null);
   const isUserInteracting = useRef(false);
+  const prevShowIntroRef = useRef(showIntro);
 
   // Logical index in the cards array
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -56,9 +63,9 @@ function Feed({
 
   // The three slots and their current content
   const [slots, setSlots] = useState<[SlotContent, SlotContent, SlotContent]>([
-    { card: null, position: 'prev' },
-    { card: null, position: 'current' },
-    { card: null, position: 'next' }
+    createEmptySlot('prev'),
+    createEmptySlot('current'),
+    createEmptySlot('next')
   ]);
   const hasMarkedFirstCard = useRef(false);
 
@@ -234,10 +241,12 @@ function Feed({
 
   // Rebase index when intro is dismissed
   useEffect(() => {
-    if (!showIntro && currentIndex > 0) {
-      setCurrentIndex(prev => Math.max(prev - 1, 0));
+    const prevShowIntro = prevShowIntroRef.current;
+    if (shouldRebaseOnIntroDismiss(prevShowIntro, showIntro, currentIndex)) {
+      setCurrentIndex(prev => rebaseIndexAfterIntroDismiss(prev));
     }
-  }, [showIntro]);
+    prevShowIntroRef.current = showIntro;
+  }, [showIntro, currentIndex]);
 
   // Proactively prefetch when near the end (including initial load)
   useEffect(() => {
@@ -437,7 +446,7 @@ function Feed({
 
   // Manual navigation
   const handleNext = useCallback(() => {
-    if (currentIndex >= cards.length - 1) return;
+    if (!canNavigateNext(currentIndex, totalItems)) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -446,7 +455,7 @@ function Feed({
       top: cardHeight * 2, // Next slot
       behavior: 'smooth'
     });
-  }, [currentIndex, cards.length]);
+  }, [currentIndex, totalItems]);
 
   const handlePrevious = useCallback(() => {
     if (currentIndex <= 0) return;

@@ -135,9 +135,10 @@ describe('Wikipedia API with Retry Logic', () => {
       mockFetch.mockResolvedValueOnce({ ok: false, status: 404 });
 
       const promise = fetchRandomSummary({ maxRetries: 3, baseDelayMs: 100 });
+      const rejection = expect(promise).rejects.toThrow('Failed to fetch random summary: 404');
       await vi.runAllTimersAsync();
 
-      await expect(promise).rejects.toThrow('Failed to fetch random summary: 404');
+      await rejection;
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
@@ -145,9 +146,10 @@ describe('Wikipedia API with Retry Logic', () => {
       mockFetch.mockResolvedValue({ ok: false, status: 503 });
 
       const promise = fetchRandomSummary({ maxRetries: 2, baseDelayMs: 100 });
+      const rejection = expect(promise).rejects.toThrow('Failed to fetch random summary: 503');
       await vi.runAllTimersAsync();
 
-      await expect(promise).rejects.toThrow('Failed to fetch random summary: 503');
+      await rejection;
       expect(mockFetch).toHaveBeenCalledTimes(3); // Initial + 2 retries
     });
   });
@@ -157,9 +159,10 @@ describe('Wikipedia API with Retry Logic', () => {
       mockOnline = false;
 
       const promise = fetchRandomSummary({ maxRetries: 3 });
+      const rejection = expect(promise).rejects.toThrow('No network connection');
       await vi.runAllTimersAsync();
 
-      await expect(promise).rejects.toThrow('No network connection');
+      await rejection;
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
@@ -184,9 +187,10 @@ describe('Wikipedia API with Retry Logic', () => {
       mockFetch.mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'));
 
       const promise = fetchRandomSummary({ maxRetries: 3, baseDelayMs: 100 });
+      const rejection = expect(promise).rejects.toThrow();
       await vi.runAllTimersAsync();
 
-      await expect(promise).rejects.toThrow();
+      await rejection;
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
@@ -251,4 +255,3 @@ describe('Wikipedia API with Retry Logic', () => {
   });
 
 });
-

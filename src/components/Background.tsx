@@ -92,7 +92,7 @@ function Background({ config, nextConfig, isActive, scrollProgress = 0 }: Backgr
     pendingSwapSrcRef.current = configSrc;
     setNextVideoReady(false);
     prevConfigSrcRef.current = configSrc;
-  }, [configSrc]); // Only depend on configSrc, read other values directly
+  }, [configSrc, setActiveSlot, setSlotASrc, setSlotBSrc]);
 
   // Handle next config changes (preloading)
   useEffect(() => {
@@ -123,7 +123,7 @@ function Background({ config, nextConfig, isActive, scrollProgress = 0 }: Backgr
     }
     setNextVideoReady(false);
     prevNextConfigSrcRef.current = nextConfigSrc;
-  }, [nextConfigSrc, configSrc, activeSlot]);
+  }, [nextConfigSrc, configSrc, activeSlot, setSlotASrc, setSlotBSrc]);
 
   // Video ready handlers
   const handleVideoACanPlay = useCallback(() => {

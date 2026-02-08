@@ -26,7 +26,7 @@ const TARGETS = {
   MEMORY_GROWTH_MB: 50, // Max acceptable growth per session
 };
 
-let metrics: PerformanceMetrics = {
+const metrics: PerformanceMetrics = {
   tti: null,
   fcp: null,
   lcp: null,

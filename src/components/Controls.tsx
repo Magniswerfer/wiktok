@@ -45,8 +45,21 @@ function Controls({
     return text;
   };
 
+  const copyToClipboardSafely = async (text: string): Promise<boolean> => {
+    if (!navigator.clipboard?.writeText) {
+      return false;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleShare = async () => {
     const shareText = buildShareText();
+    const sharePayload = `${shareText}\n${cardUrl}`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -57,13 +70,13 @@ function Controls({
       } catch (err) {
         // User cancelled or share failed
         if ((err as Error).name !== 'AbortError') {
-          // Fallback to clipboard with full attribution
-          await navigator.clipboard.writeText(`${shareText}\n${cardUrl}`);
+          // Fallback to clipboard with full attribution (non-throwing)
+          await copyToClipboardSafely(sharePayload);
         }
       }
     } else {
-      // Fallback: copy to clipboard with full attribution
-      await navigator.clipboard.writeText(`${shareText}\n${cardUrl}`);
+      // Fallback: copy to clipboard with full attribution (non-throwing)
+      await copyToClipboardSafely(sharePayload);
     }
   };
 
